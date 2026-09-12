@@ -3,11 +3,12 @@ import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from database import db
+from config import Config
 from rapidfuzz import process, fuzz
 from plugins.start import check_verification
 
 async def auto_delete_message(message, delay_seconds):
-    """संदेश को निर्दिष्ट समय के बाद हटाने के लिए हेल्प फ़ंक्शन"""
+    """संदेश को ऑटो-डिलीट करने का फ़ंक्शन"""
     await asyncio.sleep(delay_seconds)
     try:
         await message.delete()
@@ -15,25 +16,23 @@ async def auto_delete_message(message, delay_seconds):
         pass
 
 def extract_searched_episode(text):
-    """सर्च क्वेरी में से एपिसोड नंबर निकालता है"""
-    match = re.search(r'(?:ep|episode|e)?\s*(\d+)$', text, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    return None
+    """सर्च क्वेरी में से नंबर निकालता है (उदा: 9 या episode 9)"""
+    match = re.search(r'\b(\d+)\b', text)
+    return int(match.group(1)) if match else None
 
-def check_episode_in_range(user_ep, ep_info):
-    """चेक करता है कि यूजर का एपिसोड रेंज (1-10) या सिंगल नंबर में फिट होता है या नहीं"""
-    if not ep_info or not user_ep:
+def is_num_in_range(num, text):
+    """चेक करता है कि नंबर बटन के नाम (जैसे '1 To 10' या '1-10') में आता है या नहीं"""
+    if not num or not text:
+        return False
+    # Check single number match
+    if str(num) == str(text).strip():
         return True
-    
-    if "-" in str(ep_info):
-        try:
-            start, end = map(int, str(ep_info).split("-"))
-            return start <= int(user_ep) <= end
-        except ValueError:
-            return False
-            
-    return str(user_ep) == str(ep_info)
+    # Range check like 1-10, 1 to 10
+    ranges = re.findall(r'(\d+)\s*(?:to|-)\s*(\d+)', str(text), re.IGNORECASE)
+    for start, end in ranges:
+        if int(start) <= num <= int(end):
+            return True
+    return False
 
 def build_pagination_markup(results, page=0, query_text=""):
     page_size = 10
@@ -43,8 +42,8 @@ def build_pagination_markup(results, page=0, query_text=""):
 
     buttons = []
     for item in current_page_items:
-        p_ep = item.get("episode_info")
-        btn_label = f"{item['title']}" + (f" [EP {p_ep}]" if p_ep else "")
+        # बटन का नाम या तो custom name होगा या fallback Title
+        btn_label = item.get("button_name") or item.get("title")
         buttons.append([InlineKeyboardButton(btn_label, url=item["link"])])
 
     total_pages = (len(results) + page_size - 1) // page_size
@@ -66,51 +65,53 @@ def build_pagination_markup(results, page=0, query_text=""):
     return InlineKeyboardMarkup(buttons)
 
 async def get_search_results(user_query):
-    searched_ep = extract_searched_episode(user_query)
-    
-    clean_title = re.sub(r'(?:ep|episode|e)?\s*\d+(?:\s*(?:-|to)\s*\d+)?', '', user_query, flags=re.IGNORECASE).strip()
-    if not clean_title:
-        clean_title = user_query.strip()
-
     all_docs = await db.get_all_posts()
     if not all_docs:
         return [], None
 
+    query_clean = user_query.strip().lower()
+    searched_num = extract_searched_episode(user_query)
+
     matched_items = []
-    all_titles = []
+    story_titles_set = set()
 
     for doc in all_docs:
-        title = doc.get("title", "")
-        all_titles.append(title)
+        story_title = doc.get("title", "")
+        story_titles_set.add(story_title)
 
-        if clean_title.lower() in title.lower():
-            for link_obj in doc.get("links", []):
-                ep_info = link_obj.get("episode_info")
-                
-                if searched_ep and ep_info:
-                    if check_episode_in_range(searched_ep, ep_info):
-                        matched_items.append({
-                            "title": title,
-                            "link": link_obj["link"],
-                            "episode_info": ep_info
-                        })
-                else:
-                    matched_items.append({
-                        "title": title,
-                        "link": link_obj["link"],
-                        "episode_info": ep_info
-                    })
+        links_list = doc.get("links", [])
+        for link_obj in links_list:
+            btn_name = link_obj.get("button_name") or link_obj.get("episode_info") or "Open Link"
+            link = link_obj.get("link", "")
+            btn_name_str = str(btn_name).lower()
 
+            # 1. Story Title या Button Name पाठ्य से मैच होना
+            is_direct_match = (query_clean in story_title.lower()) or (query_clean in btn_name_str)
+
+            # 2. Episode/Number Range match (जैसे '9' लिखने पर 1 To 10 वाला बटन मिलना)
+            is_number_match = False
+            if searched_num and is_num_in_range(searched_num, btn_name_str):
+                is_number_match = True
+
+            if is_direct_match or is_number_match:
+                matched_items.append({
+                    "title": story_title,
+                    "button_name": btn_name,
+                    "link": link
+                })
+
+    # अगर डायरेक्ट या नंबर मैच मिल गया
     if matched_items:
         return matched_items, None
 
+    # अगर exact match नहीं मिला तो Did You Mean के लिए सिर्फ Unique Story Titles यूज़ होंगे
     best_matches = process.extract(
-        clean_title,
-        list(set(all_titles)),
+        user_query,
+        list(story_titles_set),
         scorer=fuzz.WRatio,
         limit=5
     )
-    suggestions = [match[0] for match in best_matches if match[1] >= 55]
+    suggestions = [match[0] for match in best_matches if match[1] >= 50]
     return [], list(set(suggestions))
 
 
@@ -132,37 +133,58 @@ async def search_handler(client, message):
             "ʏᴏᴜ ᴍᴜsᴛ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ᴛᴏ sᴇᴀʀᴄʜ sᴛᴏʀɪᴇs.",
             reply_markup=btn
         )
-        return  # 👈 Is line se aage ka search logic run nahi hoga jab tak user join nahi karega
+        return
 
     user_query = message.text
     matched_items, suggestions = await get_search_results(user_query)
 
-    # 1. MATCH FOUND -> 5 Minutes Auto Delete
+    # 1. MATCH FOUND -> (स्टोरी के बटन उनके लिंक के साथ शो होंगे)
     if matched_items:
         markup = build_pagination_markup(results=matched_items, page=0, query_text=user_query)
         sent_msg = await message.reply_text(
-            f"🔍 **Search Results for:** `{user_query}`\nTotal: `{len(matched_items)}` items\n\n"
+            f"🔍 **Search Results for:** `{user_query}`\nTotal Buttons: `{len(matched_items)}`\n\n"
             f"⏱️ _This message will be deleted in 5 minutes._",
             reply_markup=markup
         )
         asyncio.create_task(auto_delete_message(sent_msg, 300))
         return
 
-    # 2. DID YOU MEAN SUGGESTION -> 1 Minute Auto Delete
+    # 2. DID YOU MEAN SUGGESTION -> (केवल स्टोरी नेम के बटन शो होंगे)
     if suggestions:
         sug_buttons = []
-        for sug in suggestions:
-            sug_buttons.append([InlineKeyboardButton(f"🔍 {sug}", callback_data=f"dym_search#{sug}")])
+        for sug_title in suggestions:
+            sug_buttons.append([InlineKeyboardButton(f"🔍 {sug_title}", callback_data=f"dym_search#{sug_title}")])
 
         sent_msg = await message.reply_text(
-            f"❌ No match found for `{user_query}`.\n\n**Did you mean?**\n\n"
+            f"❌ No exact match for `{user_query}`.\n\n**Did you mean?**\n\n"
             f"⏱️ _This suggestion message will be deleted in 1 minute._",
             reply_markup=InlineKeyboardMarkup(sug_buttons)
         )
         asyncio.create_task(auto_delete_message(sent_msg, 60))
         return
 
-    # 3. SILENT MODE: Out off database matching will stay completely silent.
+    # 3. SILENT MODE: डेटाबेस से मैच न होने पर बॉट बिल्कुल शांत रहेगा।
+
+
+@Client.on_callback_query(filters.regex(r"^dym_search#"))
+async def dym_callback(client, query):
+    if not await check_verification(client, query.from_user.id):
+        await query.answer("Please join our update channel first!", show_alert=True)
+        return
+
+    sug_story_title = query.data.split("#")[1]
+    matched_items, _ = await get_search_results(sug_story_title)
+
+    if matched_items:
+        markup = build_pagination_markup(results=matched_items, page=0, query_text=sug_story_title)
+        await query.message.edit_text(
+            f"📖 **Story:** `{sug_story_title}`\nTotal Buttons: `{len(matched_items)}`\n\n"
+            f"⏱️ _This message will be deleted in 5 minutes._",
+            reply_markup=markup
+        )
+        asyncio.create_task(auto_delete_message(query.message, 300))
+    else:
+        await query.answer("No buttons found for this story!", show_alert=True)
 
 
 @Client.on_callback_query(filters.regex(r"^search_pg#"))
@@ -181,31 +203,10 @@ async def pagination_callback(client, query):
 
     markup = build_pagination_markup(results=matched_items, page=page, query_text=query_text)
     await query.message.edit_text(
-        f"🔍 **Search Results for:** `{query_text}`\nTotal: `{len(matched_items)}` items\n\n"
+        f"🔍 **Search Results for:** `{query_text}`\nTotal Buttons: `{len(matched_items)}`\n\n"
         f"⏱️ _This message will be deleted in 5 minutes._",
         reply_markup=markup
     )
-
-
-@Client.on_callback_query(filters.regex(r"^dym_search#"))
-async def dym_callback(client, query):
-    if not await check_verification(client, query.from_user.id):
-        await query.answer("Please join our update channel first!", show_alert=True)
-        return
-
-    sug_title = query.data.split("#")[1]
-    matched_items, _ = await get_search_results(sug_title)
-
-    if matched_items:
-        markup = build_pagination_markup(results=matched_items, page=0, query_text=sug_title)
-        await query.message.edit_text(
-            f"🔍 **Search Results for:** `{sug_title}`\nTotal: `{len(matched_items)}` items\n\n"
-            f"⏱️ _This message will be deleted in 5 minutes._",
-            reply_markup=markup
-        )
-        asyncio.create_task(auto_delete_message(query.message, 300))
-    else:
-        await query.answer("No data found!", show_alert=True)
 
 
 @Client.on_callback_query(filters.regex("^last_page_alert$"))
