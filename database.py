@@ -9,45 +9,79 @@ class Database:
         self.posts = self.db.posts
         self.users = self.db.users
 
-    # --- Posts Logic (Multiple Links & Ranges Support) ---
-    async def save_post(self, title, link, episode_info=None):
+    # --- Upgraded Posts Logic (Story | Button Text | Link Support) ---
+    async def save_post(self, caption_text):
         """
-        एक ही टाइटल के अंदर multiple links और episode ranges (जैसे '1-10', '11-20', '5') 
-        को डेटाबेस में सुरक्िषत सेव करता है बिना पुराना डेटा डिलीट किए।
+        फ़ॉर्मेट: "Story Name | Button Text | Link"
+        उदाहरण: "My possessive saiyaan | My possessive saiyaan ep 1 To 10 | https://t.me/pratilipifm0900"
         """
-        clean_title = title.strip()
-        title_lower = clean_title.lower()
+        parts = [p.strip() for p in caption_text.split('|')]
+        
+        # अगर 3 पार्ट्स (Story | Button Text | Link) नहीं हैं तो प्रोसेस न करें
+        if len(parts) < 3:
+            return False
 
-        # Check karein ki kya ye link pehle se iss title me hai
+        story_name = parts[0]
+        button_text = parts[1]
+        link = parts[2]
+
+        story_lower = story_name.lower()
+
+        # check duplicate button text or link in same story
         existing_doc = await self.posts.find_one({
-            "title_lower": title_lower,
-            "links.link": link
+            "story_lower": story_lower,
+            "$or": [
+                {"buttons.link": link},
+                {"buttons.button_text": button_text}
+            ]
         })
 
         if not existing_doc:
-            # Agar new link hai to $push karein
+            # Agar story nahi hai to create hogi ($setOnInsert),
+            # aur naya button array me push ho jayega ($addToSet)
             await self.posts.update_one(
-                {"title_lower": title_lower},
+                {"story_lower": story_lower},
                 {
+                    "$setOnInsert": {
+                        "story_name": story_name,
+                        "created_at": datetime.utcnow()
+                    },
                     "$set": {
-                        "title": clean_title,
                         "updated_at": datetime.utcnow()
                     },
-                    "$push": {
-                        "links": {
-                            "link": link,
-                            "episode_info": str(episode_info) if episode_info else None
+                    "$addToSet": {
+                        "buttons": {
+                            "button_text": button_text,
+                            "link": link
                         }
                     }
                 },
                 upsert=True
             )
+            return True
+        return False
 
-    async def search_posts(self, query):
-        """Fuzzy/Regex Search for Title Match"""
+    # --- Suggestions / Did You Mean Logic ---
+    async def get_story_suggestions(self, query):
+        """
+        यूज़र जब सर्च करेगा तो केवल UNIQUE Story Names के आधार पर रिजल्ट लाएगा,
+        बटन के लंबे नामों को इग्नोर करके।
+        """
         query_regex = {"$regex": query.strip(), "$options": "i"}
-        cursor = self.posts.find({"title": query_regex})
+        # केवल story_name और buttons return करेगा
+        cursor = self.posts.find(
+            {"story_name": query_regex},
+            {"story_name": 1, "buttons": 1}
+        )
         return await cursor.to_list(length=None)
+
+    async def get_all_story_names(self):
+        """Fuzzy Matching के लिए सभी Unique Story Names निकालेगा"""
+        return await self.posts.distinct("story_name")
+
+    async def get_story_by_name(self, story_name):
+        """जब यूज़र सजेशन वाले Story Button पर क्लिक करेगा, तो उसके सारे एपिसोड बटन्स निकालेगा"""
+        return await self.posts.find_one({"story_lower": story_name.lower()})
 
     async def get_all_posts(self):
         cursor = self.posts.find({})
