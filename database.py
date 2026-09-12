@@ -1,0 +1,42 @@
+import motor.motor_asyncio
+from config import Config
+
+class Database:
+    def __init__(self):
+        self.client = motor.motor_asyncio.AsyncIOMotorClient(Config.MONGO_URI)
+        self.db = self.client[Config.DATABASE_NAME]
+        self.posts = self.db.posts
+        self.users = self.db.users
+
+    # --- Posts Logic ---
+    async def save_post(self, title, link, episode=None):
+        data = {
+            "title": title.lower().strip(),
+            "display_title": title,
+            "link": link,
+            "episode": int(episode) if episode else None
+        }
+        await self.posts.update_one({"link": link}, {"$set": data}, upsert=True)
+
+    async def get_all_posts(self):
+        cursor = self.posts.find({})
+        return await cursor.to_list(length=None)
+
+    # --- User Registration Logic ---
+    async def add_user(self, user_id, first_name, username=None):
+        """अगर यूजर नया है तो रजिस्ट्रेशन करके True देगा, अगर पुराना है तो False देगा"""
+        user = await self.users.find_one({"user_id": user_id})
+        if not user:
+            user_data = {
+                "user_id": user_id,
+                "first_name": first_name,
+                "username": username
+            }
+            await self.users.insert_one(user_data)
+            return True  # New User Registered
+        return False  # Already Exists
+
+    async def total_users_count(self):
+        return await self.users.count_documents({})
+
+db = Database()
