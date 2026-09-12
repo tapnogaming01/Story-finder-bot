@@ -1,5 +1,5 @@
 import os
-from pyrogram import Client
+from pyrogram import Client, idle
 from config import Config
 from aiohttp import web
 from server import web_server
@@ -16,7 +16,7 @@ async def start_services():
     print("Bot Starting...")
     await app.start()
 
-    # Log Channel Restart Alert Send Logic
+    # Restart Notification
     if Config.LOG_CHANNEL:
         try:
             bot_info = await app.get_me()
@@ -30,7 +30,7 @@ async def start_services():
         except Exception as e:
             print(f"Failed to send restart message to Log Channel: {e}")
 
-    # Render Port Listener Start
+    # Render Port Listener
     PORT = int(os.environ.get("PORT", 8080))
     server = web.AppRunner(await web_server())
     await server.setup()
@@ -38,7 +38,9 @@ async def start_services():
     await site.start()
     print(f"Web Server running on port {PORT}")
 
-    await app.idle()
+    # app.idle() ki jagah idle() use karein
+    await idle()
+    await app.stop()
 
 if __name__ == "__main__":
     app.run(start_services())
