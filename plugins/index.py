@@ -69,26 +69,21 @@ async def manual_index_command(client, message):
     )
 
 
-# 2. REPLY LISTENER - जब आप लास्ट लिंक भेजेंगे तो पूरा चैनल स्कैन होगा
-@Client.on_message(filters.private & filters.reply & filters.user(Config.OWNER_ID))
+# 2. LINK LISTENER - जब भी आप Telegram Post Link भेजेंगे (रिप्लाई हो या डायरेक्ट)
+@Client.on_message(filters.private & filters.text & filters.user(Config.OWNER_ID) & ~filters.command(["index", "start", "help"]))
 async def start_full_channel_index(client, message):
     global IS_INDEXING
 
-    if not message.reply_to_message or "लास्ट (Latest) पोस्ट का लिंक भेजें" not in message.reply_to_message.text:
+    # टेक्स्ट में टेलीग्राम का पोस्ट लिंक तलाशें
+    urls = re.findall(r'https?://t\.me/[^\s]+', message.text)
+    if not urls:
         return
 
     if IS_INDEXING:
-        await message.reply_text("⚠️ **इंडेक्सिंग पहले से चालू है!**")
+        await message.reply_text("⚠️ **इंडेक्सिंग पहले से चालू है!** कृपया पुरानी प्रोसेस खत्म होने दें।")
         return
 
-    # लिंक में से Channel Chat ID और Last Message ID निकालें
-    link_text = message.text.strip() if message.text else ""
-    urls = re.findall(r'https?://t\.me/[^\s]+', link_text)
-    
-    if not urls:
-        await message.reply_text("❌ गलत लिंक! कृपया टेलीग्राम पोस्ट का सही लिंक भेजें।")
-        return
-
+    # लिंक पार्स करके Channel ID और Message ID निकालें
     try:
         parts = urls[0].split('/')
         last_msg_id = int(parts[-1])
@@ -99,18 +94,21 @@ async def start_full_channel_index(client, message):
         return
 
     IS_INDEXING = True
-    status_msg = await message.reply_text(f"⏳ **पूरे चैनल की इंडेक्सिंग शुरू हो रही है...**\n Target Last Message ID: `{last_msg_id}`")
+    status_msg = await message.reply_text(
+        f"⏳ **पूरे चैनल की इंडेक्सिंग शुरू हो रही है...**\n\n"
+        f"🎯 **Target Last Message ID:** `{last_msg_id}`\n"
+        f"📢 **Channel:** `{chat_id}`"
+    )
 
     total_scanned = 0
     saved_count = 0
     skipped_count = 0
 
-    # Message ID 1 से लेकर Last Message ID तक लूप चलेगा
+    # Message ID 1 से लेकर Last Message ID तक लूप चलाएँ
     for msg_id in range(1, last_msg_id + 1):
         try:
             target_msg = await client.get_messages(chat_id, msg_id)
             
-            # अगर खाली या डिलीटेड मैसेज है तो स्किप करें
             if not target_msg or target_msg.empty:
                 continue
 
@@ -129,20 +127,18 @@ async def start_full_channel_index(client, message):
                 else:
                     skipped_count += 1
 
-            # हर 20 मैसेज के बाद स्टेटस अपडेट करें
+            # हर 20 मैसेज पर लाइव प्रोग्रेस अपडेट दिखाएगा
             if msg_id % 20 == 0:
                 await status_msg.edit_text(
                     f"🔄 **चैनल स्कैनिंग प्रगति पर है...**\n\n"
-                    f"🔹 **वर्तमान Message ID:** `{msg_id}/{last_msg_id}`\n"
+                    f"🔹 **प्रगति:** `{msg_id}/{last_msg_id}` Messages\n"
                     f"➕ **नए जुड़े:** `{saved_count}`\n"
                     f"⚠️ **Skipped (पहले से मौजूद):** `{skipped_count}`"
                 )
             
-            # API लिमिट/FloodWait से बचने के लिए छोटा गैप
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(0.4)
 
         except FloodWait as e:
-            # अगर टेलीग्राम लिमिट लगाए तो इंतज़ार करके दोबारा शुरू करें
             await asyncio.sleep(e.value)
         except Exception:
             continue
