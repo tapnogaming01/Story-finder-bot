@@ -3,30 +3,15 @@ from pyrogram import Client, filters
 from config import Config
 from database import db
 
-def extract_episode_info(text):
-    # 1. Range match (e.g., 1-10, 1 to 10, ep 1-10, e11-20)
-    range_match = re.search(r'(?:ep|episode|e)?\s*(\d+)\s*(?:-|to)\s*(\d+)', text, re.IGNORECASE)
-    if range_match:
-        return f"{range_match.group(1)}-{range_match.group(2)}"
-    
-    # 2. Single Episode match (e.g., ep 11, e5, episode 02)
-    single_match = re.search(r'(?:ep|episode|e)\s*(\d+)', text, re.IGNORECASE)
-    if single_match:
-        return single_match.group(1)
-
-    # 3. Fallback for standalone numbers
-    num_match = re.search(r'\b(\d{1,4})\b', text)
-    if num_match:
-        return num_match.group(1)
-        
-    return None
-
 def parse_post_content(message):
     raw_text = message.caption or message.text or ""
     if not raw_text:
-        return None, None, None
+        return None
 
-    # Inline Button se custom link check karna
+    # केवल पहली लाइन लें
+    first_line = raw_text.split('\n')[0].strip()
+
+    # 1. Inline Button या Text से Link Fetch करने का तरीका (Fallback के लिए)
     custom_link = None
     if message.reply_markup and message.reply_markup.inline_keyboard:
         for row in message.reply_markup.inline_keyboard:
@@ -35,33 +20,57 @@ def parse_post_content(message):
                     custom_link = btn.url
                     break
 
-    # Text URL extraction
-    urls = re.findall(r'https?://[^\s]+', raw_text)
+    urls = re.findall(r'https?://[^\s]+', first_line or raw_text)
     if not custom_link and urls:
         custom_link = urls[0]
 
     if not custom_link:
         custom_link = message.link
 
-    # Title ke liye sirf pehli line extract karna
-    first_line = raw_text.split('\n')[0].strip()
-    if "|" in first_line:
-        title = first_line.split("|")[0].strip()
-    else:
-        title = re.sub(r'https?://[^\s]+', '', first_line).strip()
+    # 2. Split by Pipe (|) Symbol
+    parts = [p.strip() for p in first_line.split('|')]
 
-    episode_info = extract_episode_info(first_line)
-    return title, custom_link, episode_info
+    # केस 1: "Story Name | Button Text | Link" (3 or more parts)
+    if len(parts) >= 3:
+        story_name = parts[0]
+        button_text = parts[1]
+        link = parts[2]
+        
+        # अगर तीसरे पार्ट में सही URL न हो, तो extracted custom_link यूज़ करें
+        if not link.startswith("http"):
+            link = custom_link
+
+    # केस 2: "Story Name | Button Text" (2 parts - link auto fetch)
+    elif len(parts) == 2:
+        story_name = parts[0]
+        button_text = parts[1]
+        link = custom_link
+
+    # केस 3: Single Line Text / Legacy Format
+    else:
+        # टेक्स्ट में से URL हटाएँ
+        clean_text = re.sub(r'https?://[^\s]+', '', first_line).strip()
+        story_name = clean_text
+        button_text = clean_text
+        link = custom_link
+
+    if not story_name or not button_text or not link:
+        return None
+
+    # database.py के save_post के लिए string format तैयार करें
+    caption_format = f"{story_name} | {button_text} | {link}"
+    return caption_format, story_name, button_text, link
 
 
 # 1. CHANNEL AUTOMATIC INDEXING HANDLER
 @Client.on_message(filters.channel & filters.chat(Config.INDEX_CHANNEL))
 async def auto_index_handler(client, message):
-    title, link, episode_info = parse_post_content(message)
-    if not title or not link:
+    parsed_data = parse_post_content(message)
+    if not parsed_data:
         return
 
-    await db.save_post(title=title, link=link, episode_info=episode_info)
+    caption_format, story_name, button_text, link = parsed_data
+    await db.save_post(caption_text=caption_format)
 
 
 # 2. MANUAL INDEX COMMAND (/index)
@@ -91,14 +100,23 @@ async def manual_index_command(client, message):
         )
         return
 
-    title, link, episode_info = parse_post_content(target_msg)
-    if not title or not link:
-        await message.reply_text("❌ इस पोस्ट से टाइटल या लिंक नहीं मिल सका।")
+    parsed_data = parse_post_content(target_msg)
+    if not parsed_data:
+        await message.reply_text("❌ इस पोस्ट से स्टोरी का नाम, बटन टेक्स्ट या लिंक नहीं मिल सका।")
         return
 
-    await db.save_post(title=title, link=link, episode_info=episode_info)
-    ep_text = f" | EP: `{episode_info}`" if episode_info else ""
-    await message.reply_text(f"✅ **इंडेक्स हो गया!**\n\n📌 **Title:** `{title}`\n🔗 **Link:** `{link}`{ep_text}")
+    caption_format, story_name, button_text, link = parsed_data
+    success = await db.save_post(caption_text=caption_format)
+    
+    if success:
+        await message.reply_text(
+            f"✅ **इंडेक्स हो गया!**\n\n"
+            f"📖 **Story Name:** `{story_name}`\n"
+            f"🔘 **Button Text:** `{button_text}`\n"
+            f"🔗 **Link:** `{link}`"
+        )
+    else:
+        await message.reply_text("⚠️ यह बटन या लिंक पहले से इस स्टोरी में मौजूद है।")
 
 
 # 3. INDEX LAST POST COMMAND (/index_last)
@@ -106,16 +124,19 @@ async def manual_index_command(client, message):
 async def index_last_post_command(client, message):
     try:
         async for last_msg in client.get_chat_history(Config.INDEX_CHANNEL, limit=1):
-            title, link, episode_info = parse_post_content(last_msg)
-            if not title or not link:
+            parsed_data = parse_post_content(last_msg)
+            if not parsed_data:
                 await message.reply_text("❌ आखिरी पोस्ट से सही जानकारी नहीं मिली।")
                 return
 
-            await db.save_post(title=title, link=link, episode_info=episode_info)
-            ep_text = f" | EP: `{episode_info}`" if episode_info else ""
+            caption_format, story_name, button_text, link = parsed_data
+            await db.save_post(caption_text=caption_format)
+            
             await message.reply_text(
                 f"✅ **इंडेक्स चैनल की आखिरी पोस्ट इंडेक्स हो गई!**\n\n"
-                f"📌 **Title:** `{title}`\n🔗 **Link:** `{link}`{ep_text}"
+                f"📖 **Story Name:** `{story_name}`\n"
+                f"🔘 **Button Text:** `{button_text}`\n"
+                f"🔗 **Link:** `{link}`"
             )
             return
     except Exception as e:
