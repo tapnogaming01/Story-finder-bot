@@ -117,7 +117,7 @@ async def smart_search_handler(user_query):
     return None, suggestions, "suggestion"
 
 
-@Client.on_message(filters.text & filters.private & ~filters.command(["start", "help", "about", "index", "index_last"]))
+@Client.on_message(filters.text & (filters.private | filters.group) & ~filters.command(["start", "help", "about", "index", "index_last"]))
 async def search_handler(client, message):
     user_id = message.from_user.id
 
