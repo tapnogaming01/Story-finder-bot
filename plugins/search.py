@@ -2,15 +2,23 @@ import re
 import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.errors import FloodWait
 from database import db
 from rapidfuzz import process, fuzz
 from plugins.start import check_verification
+from config import Config
 
 async def auto_delete_message(message, delay_seconds):
-    """संदेश को निर्दिष्ट समय के बाद हटाने के लिए हेल्प फ़ंक्शन"""
+    """संदेश को निर्दिष्ट समय के बाद हटाने के लिए हेल्प फ़ंक्शन (FloodWait Safe)"""
     await asyncio.sleep(delay_seconds)
     try:
         await message.delete()
+    except FloodWait as e:
+        await asyncio.sleep(e.value)
+        try:
+            await message.delete()
+        except Exception:
+            pass
     except Exception:
         pass
 
@@ -119,28 +127,31 @@ async def smart_search_handler(user_query):
 
 @Client.on_message(filters.text & (filters.private | filters.group) & ~filters.command(["start", "help", "about", "index", "index_last"]))
 async def search_handler(client, message):
-    user_id = message.from_user.id
-
-    # Strict Force Sub Check
-    is_joined = await check_verification(client, user_id)
-    if not is_joined:
-        req_channel = str(Config.REQ_CHANNEL).replace("-100", "")
-        invite_link = f"https://t.me/{Config.REQ_CHANNEL}" if not req_channel.isdigit() else f"https://t.me/c/{req_channel}/1"
-        btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Join Update Channel", url=invite_link)],
-            [InlineKeyboardButton("🔄 Verify / Try Again", url=f"https://t.me/{client.me.username}?start=start")]
-        ])
-        await message.reply_text(
-            "⚠️ **Access Denied!**\n\n"
-            "ʏᴏᴜ ᴍᴜsᴛ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ᴛᴏ sᴇᴀʀᴄʜ sᴛᴏʀɪᴇs.",
-            reply_markup=btn
-        )
+    user_id = message.from_user.id if message.from_user else None
+    if not user_id:
         return
+
+    # Strict Force Sub Check (केवल PM के लिए)
+    if message.chat.type.name == "PRIVATE":
+        is_joined = await check_verification(client, user_id)
+        if not is_joined:
+            req_channel = str(Config.REQ_CHANNEL).replace("-100", "")
+            invite_link = f"https://t.me/{Config.REQ_CHANNEL}" if not req_channel.isdigit() else f"https://t.me/c/{req_channel}/1"
+            btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📢 Join Update Channel", url=invite_link)],
+                [InlineKeyboardButton("🔄 Verify / Try Again", url=f"https://t.me/{client.me.username}?start=start")]
+            ])
+            await message.reply_text(
+                "⚠️ **Access Denied!**\n\n"
+                "ʏᴏᴜ ᴍᴜsᴛ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ᴛᴏ sᴇᴀʀᴄʜ sᴛᴏʀɪᴇs.",
+                reply_markup=btn
+            )
+            return
 
     user_query = message.text
     story_doc, results, result_type = await smart_search_handler(user_query)
 
-    # 1. DIRECT BUTTON या EXACT STORY MATCH (सारे बटन्स निकाल कर दो - 5 Min Auto Delete)
+    # 1. DIRECT BUTTON या EXACT STORY MATCH (5 Min Auto Delete)
     if result_type in ["direct_button", "story_all"] and results:
         markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"])
         title_header = f"📖 **Story:** `{story_doc['story_name']}`"
@@ -156,7 +167,7 @@ async def search_handler(client, message):
         asyncio.create_task(auto_delete_message(sent_msg, 300))
         return
 
-    # 2. DID YOU MEAN (केवल स्टोरी का नाम गलत होने पर - 1 Min Auto Delete)
+    # 2. DID YOU MEAN (1 Min Auto Delete)
     if result_type == "suggestion" and results:
         sug_buttons = []
         for sug in results:
@@ -175,23 +186,37 @@ async def search_handler(client, message):
 
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
 async def dym_story_callback(client, query):
-    if not await check_verification(client, query.from_user.id):
+    user_id = query.from_user.id
+
+    if not await check_verification(client, user_id):
         await query.answer("Please join our update channel first!", show_alert=True)
         return
 
     story_name = query.data.split("#")[1]
-    story_doc = await db.get_story_by_name(story_name)
+    story_doc = await db.posts.find_one({"story_name": story_name})
 
     if story_doc and story_doc.get("buttons"):
+        # 1. Did You Mean मैसेज को तुरंत डिलीट करें
+        try:
+            await query.message.delete()
+        except Exception:
+            pass
+
+        # 2. बटन्स का Markup तैयार करके नया मैसेज भेजें
         markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name)
         total_btns = len(story_doc["buttons"])
-        await query.message.edit_text(
-            f"📖 **Story:** `{story_doc['story_name']}`\n"
-            f"🔗 **Available Links/Episodes:** `{total_btns}`\n\n"
-            f"⏱️ _This message will be deleted in 5 minutes._",
+        
+        sent_msg = await client.send_message(
+            chat_id=query.message.chat.id,
+            text=(
+                f"📖 **Story:** `{story_doc['story_name']}`\n"
+                f"🔗 **Available Links/Episodes:** `{total_btns}`\n\n"
+                f"⏱️ _This message will be deleted in 5 minutes._"
+            ),
             reply_markup=markup
         )
-        asyncio.create_task(auto_delete_message(query.message, 300))
+        asyncio.create_task(auto_delete_message(sent_msg, 300))
+        await query.answer()
     else:
         await query.answer("No buttons found for this story!", show_alert=True)
 
@@ -205,13 +230,14 @@ async def story_pagination_callback(client, query):
     _, page_str, story_name = query.data.split("#")
     page = int(page_str)
 
-    story_doc = await db.get_story_by_name(story_name)
+    story_doc = await db.posts.find_one({"story_name": story_name})
     if not story_doc or not story_doc.get("buttons"):
         await query.answer("Story data expired!", show_alert=True)
         return
 
     markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name)
     total_btns = len(story_doc["buttons"])
+    
     await query.message.edit_text(
         f"📖 **Story:** `{story_doc['story_name']}`\n"
         f"🔗 **Available Links/Episodes:** `{total_btns}`\n\n"
