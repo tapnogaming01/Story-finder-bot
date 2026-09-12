@@ -1,3 +1,4 @@
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserNotParticipant
@@ -36,19 +37,21 @@ async def start_handler(client, message):
             f"📊 **Total Users:** `{total_users}`"
         )
         try:
-            await client.send_message(Config.LOG_CHANNEL, log_text)
+            await client.send_message(chat_id=int(Config.LOG_CHANNEL), text=log_text)
         except Exception as e:
             print(f"Log Channel Error: {e}")
 
     # 2. Force Sub / Verification Check
     if not await check_verification(client, user_id):
-        invite_link = f"https://t.me/{Config.REQ_CHANNEL}" if isinstance(Config.REQ_CHANNEL, str) else "https://t.me/"
+        req_channel = str(Config.REQ_CHANNEL).replace("-100", "")
+        invite_link = f"https://t.me/{Config.REQ_CHANNEL}" if not req_channel.isdigit() else f"https://t.me/c/{req_channel}/1"
         btn = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📢 Join Channel", url=invite_link)],
+            [InlineKeyboardButton("📢 Join Update Channel", url=invite_link)],
             [InlineKeyboardButton("🔄 Verify / Try Again", url=f"https://t.me/{client.me.username}?start=start")]
         ])
         await message.reply_text(
-            "⚠️ **सर्च करने से पहले आपको हमारे अपडेट चैनल को जॉइन करना होगा!**",
+            "⚠️ **Access Denied!**\n\n"
+            "ʏᴏᴜ ᴍᴜsᴛ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ᴛᴏ ᴜsᴇ ᴛʜɪs ʙᴏᴛ.",
             reply_markup=btn
         )
         return
@@ -56,18 +59,21 @@ async def start_handler(client, message):
     text = message.text.split()
     if len(text) > 1:
         deep_param = text[1]
-        await message.reply_text(f"आपने डीप-लिंक से स्टार्ट किया: **{deep_param}**")
+        await message.reply_text(f"🚀 **Started via Deep-Link:** `{deep_param}`")
         return
 
+    # Main Home UI
     welcome_text = (
-        f"नमस्कार **{first_name}**!\n\n"
-        "मैं एक एडवांस ऑटो-फिल्टर बॉट हूँ। मुझे ग्रुप में जोड़ें या यहाँ मैसेज लिखकर खोजें।"
+        f"👋 **ʜᴇʏ {first_name}!**\n\n"
+        "ɪ ᴀᴍ **ɪɴғɪɴɪᴛʏ sᴛᴏʀʏs ғɪɴᴅᴇʀ ʙᴏᴛ**, ᴛʜᴇ ᴍᴏsᴛ ᴘᴏᴡᴇʀғᴜʟ ᴀɴᴅ ᴀᴜᴛᴏᴍᴀᴛᴇᴅ "
+        "ᴄʜᴀɴɴᴇʟ ʟɪɴᴋ sᴇᴀʀᴄʜ ᴇɴɢɪɴᴇ.\n\n"
+        "✨ *ᴊᴜsᴛ sᴇɴᴅ ᴍᴇ ᴛʜᴇ ɴᴀᴍᴇ ᴏғ ᴀɴʏ sᴛᴏʀʏ ᴏʀ ᴇᴘɪsᴏᴅᴇ ᴛᴏ sᴇᴀʀᴄʜ!*"
     )
     
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("Owner", url=f"tg://user?id={Config.OWNER_ID}"),
-            InlineKeyboardButton("About", callback_data="about_btn")
+            InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={Config.OWNER_ID}"),
+            InlineKeyboardButton("ℹ️ About", callback_data="about_btn")
         ]
     ])
     
@@ -75,11 +81,36 @@ async def start_handler(client, message):
 
 @Client.on_callback_query(filters.regex("about_btn"))
 async def about_callback(client, query):
+    about_text = (
+        "🤖 **ᴀʙᴏᴜᴛ ᴛʜɪs ʙᴏᴛ**\n\n"
+        "▸ **ɴᴀᴍᴇ:** ɪɴғɪɴɪᴛʏ sᴛᴏʀʏs ғɪɴᴅᴇʀ ʙᴏᴛ\n"
+        "▸ **ғᴜɴᴄᴛɪᴏɴ:** ᴀᴜᴛᴏ-ɪɴᴅᴇx & ғᴜᴢᴢʏ sᴇᴀʀᴄʜ ᴇɴɢɪɴᴇ\n"
+        "▸ **ᴅᴇᴠᴇʟᴏᴘᴇʀ:** [Kaluu](tg://user?id=" + str(Config.OWNER_ID) + ")\n"
+        "▸ **ʟᴀɴɢᴜᴀɢᴇ:** Python 3\n"
+        "▸ **ғʀᴀᴍᴇᴡᴏʀᴋ:** kurigram v2.2.25"
+    )
     await query.message.edit_text(
-        "**About This Bot**\n\nयह बॉट ऑटोमैटिक चैनल पोस्ट्स को टाइटल और कस्टम लिंक्स के साथ इंडेक्स करता है।",
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Back", callback_data="back_home")]])
+        about_text,
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ Back", callback_data="back_home")]])
     )
 
 @Client.on_callback_query(filters.regex("back_home"))
 async def back_home_callback(client, query):
-    await start_handler(client, query.message)
+    first_name = query.from_user.first_name
+    
+    welcome_text = (
+        f"👋 **ʜᴇʏ {first_name}!**\n\n"
+        "ɪ ᴀᴍ **ɪɴғɪɴɪᴛʏ sᴛᴏʀʏs ғɪɴᴅᴇʀ ʙᴏᴛ**, ᴛʜᴇ ᴍᴏsᴛ ᴘᴏᴡᴇʀғᴜʟ ᴀɴᴅ ᴀᴜᴛᴏᴍᴀᴛᴇᴅ "
+        "ᴄʜᴀɴɴᴇʟ ʟɪɴᴋ sᴇᴀʀᴄʜ ᴇɴɢɪɴᴇ.\n\n"
+        "✨ *ᴊᴜsᴛ sᴇɴᴅ ᴍᴇ ᴛʜᴇ ɴᴀᴍᴇ ᴏғ ᴀɴʏ sᴛᴏʀʏ ᴏʀ ᴇᴘɪsᴏᴅᴇ ᴛᴏ sᴇᴀʀᴄʜ!*"
+    )
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={Config.OWNER_ID}"),
+            InlineKeyboardButton("ℹ️ About", callback_data="about_btn")
+        ]
+    ])
+    
+    # Back click par direct message edit hoga (Deep-link issue fixed)
+    await query.message.edit_text(welcome_text, reply_markup=buttons)
