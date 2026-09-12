@@ -1,4 +1,5 @@
 import os
+import asyncio
 from pyrogram import Client, idle
 from config import Config
 from aiohttp import web
@@ -21,14 +22,15 @@ async def start_services():
         try:
             bot_info = await app.get_me()
             await app.send_message(
-                Config.LOG_CHANNEL,
-                f"🤖 **Bot Restarted Successfully!**\n\n"
-                f"🔹 **Name:** {bot_info.first_name}\n"
-                f"🔹 **Username:** @{bot_info.username}\n"
-                f"🚀 **Status:** Active & Ready!"
+                chat_id=int(Config.LOG_CHANNEL),
+                text=f"🤖 **Bot Restarted Successfully!**\n\n"
+                     f"🔹 **Name:** {bot_info.first_name}\n"
+                     f"🔹 **Username:** @{bot_info.username}\n"
+                     f"🚀 **Status:** Active & Ready!"
             )
+            print("LOG: Restart message sent to Log Channel successfully!")
         except Exception as e:
-            print(f"Failed to send restart message to Log Channel: {e}")
+            print(f"ERROR (Restart Alert): {e}")
 
     # Render Port Listener
     PORT = int(os.environ.get("PORT", 8080))
@@ -38,9 +40,10 @@ async def start_services():
     await site.start()
     print(f"Web Server running on port {PORT}")
 
-    # app.idle() ki jagah idle() use karein
     await idle()
     await app.stop()
 
 if __name__ == "__main__":
-    app.run(start_services())
+    # Correct way to run async main loop
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(start_services())
