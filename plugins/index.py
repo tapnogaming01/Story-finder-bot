@@ -1,7 +1,7 @@
 import re
 import asyncio
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.enums import ParseMode
 from config import Config
 from database import db
 
@@ -62,22 +62,26 @@ async def auto_index_handler(client, message):
     if not title or not link:
         return
 
+    # Updated keyword parameter 'button_name' used properly
     await db.save_post(title=title, link=link, button_name=button_name)
     print(f"✅ Auto-Indexed: {title} -> {button_name}")
 
 
-# 2. 🔄 MANUAL INDEX COMMAND (/index -> Prompts for Last Link)
+# 2. 🔄 MANUAL INDEX COMMAND (/index)
 @Client.on_message(filters.command("index") & filters.private & filters.user(Config.OWNER_ID))
 async def manual_index_command(client, message):
     user_id = message.from_user.id
     WAITING_INDEX_LINK[user_id] = True
-    await message.reply_text(
-        "📥 **Now send last link in your database channel.**\n\n"
-        "*(For example: `https://t.me/c/123456789/500` or `https://t.me/your_channel/500`)*"
+    
+    # Safe text formatting without raw nested markdown entities
+    msg_text = (
+        "📥 Now send last link in your database channel.\n\n"
+        "(For example: https://t.me/c/123456789/500)"
     )
+    await message.reply_text(msg_text, parse_mode=ParseMode.DISABLED)
 
 
-# 3. 🔍 CHANNEL REFRESHER HANDLER (Link मिलने पर पूरे चैनल को स्कैन करके Refresh करेगा)
+# 3. 🔍 CHANNEL REFRESHER HANDLER
 @Client.on_message(filters.text & filters.private & filters.user(Config.OWNER_ID))
 async def handle_channel_link_indexing(client, message):
     user_id = message.from_user.id
@@ -89,7 +93,7 @@ async def handle_channel_link_indexing(client, message):
     match = re.search(link_pattern, text)
 
     if not match:
-        await message.reply_text("❌ **Invalid Telegram Link!**\nPlease send a valid post link from your database channel.")
+        await message.reply_text("❌ Invalid Telegram Link!\nPlease send a valid post link from your database channel.")
         return
 
     WAITING_INDEX_LINK[user_id] = False
@@ -98,12 +102,11 @@ async def handle_channel_link_indexing(client, message):
     last_msg_id = int(match.group(3))
 
     target_chat = int(f"-100{channel_identifier}") if match.group(1) else channel_identifier
-    status_msg = await message.reply_text(f"⏳ **Refreshing database... Scanning messages up to ID `{last_msg_id}`**")
+    status_msg = await message.reply_text(f"⏳ Refreshing database... Scanning messages up to ID {last_msg_id}")
 
     saved_count = 0
     skipped_count = 0
 
-    # Retrieve existing links to prevent duplicates
     existing_posts = await db.get_all_posts()
     existing_links = set()
     for post in existing_posts:
@@ -133,17 +136,17 @@ async def handle_channel_link_indexing(client, message):
         if msg_id % 20 == 0:
             try:
                 await status_msg.edit_text(
-                    f"🔄 **Indexing Progress...**\n\n"
-                    f"🔢 Message ID: `{msg_id}/{last_msg_id}`\n"
-                    f"✅ Saved: `{saved_count}`\n"
-                    f"⏩ Skipped (Already Exist): `{skipped_count}`"
+                    f"🔄 Indexing Progress...\n\n"
+                    f"Message ID: {msg_id}/{last_msg_id}\n"
+                    f"Saved: {saved_count}\n"
+                    f"Skipped (Already Exist): {skipped_count}"
                 )
             except Exception:
                 pass
 
     await status_msg.edit_text(
-        f"✅ **Database Channel Indexing Completed!**\n\n"
-        f"📊 **Total Scanned:** `{last_msg_id}`\n"
-        f"🆕 **New Saved:** `{saved_count}`\n"
-        f"⏩ **Skipped (Already Saved):** `{skipped_count}`"
+        f"✅ Database Channel Indexing Completed!\n\n"
+        f"Total Scanned: {last_msg_id}\n"
+        f"New Saved: {saved_count}\n"
+        f"Skipped (Already Saved): {skipped_count}"
     )
