@@ -9,23 +9,28 @@ class Database:
         self.posts = self.db.posts
         self.users = self.db.users
 
-    # --- Posts Logic (Multiple Links & Ranges Support) ---
-    async def save_post(self, title, link, episode_info=None):
+    # --- Posts Logic (Multiple Buttons & Links Support) ---
+    async def save_post(self, title, link, button_name=None):
         """
-        एक ही टाइटल के अंदर multiple links और episode ranges (जैसे '1-10', '11-20', '5') 
-        को डेटाबेस में सुरक्िषत सेव करता है बिना पुराना डेटा डिलीट किए।
+        एक ही Story Title के अंदर मल्टीपल बटन और लिंक्स को सेव करता है।
+        अगर लिंक या बटन पहले से मौजूद है, तो डुप्लीकेट होने से रोकता है।
         """
         clean_title = title.strip()
         title_lower = clean_title.lower()
+        clean_button = button_name.strip() if button_name else "Open Link"
+        clean_link = link.strip()
 
-        # Check karein ki kya ye link pehle se iss title me hai
+        # Check karein ki kya ye same link ya same button name pehle se iss title me hai
         existing_doc = await self.posts.find_one({
             "title_lower": title_lower,
-            "links.link": link
+            "$or": [
+                {"links.link": clean_link},
+                {"links.button_name": clean_button}
+            ]
         })
 
         if not existing_doc:
-            # Agar new link hai to $push karein
+            # Naya button aur link hai to same Story Title document me $push karein
             await self.posts.update_one(
                 {"title_lower": title_lower},
                 {
@@ -35,19 +40,13 @@ class Database:
                     },
                     "$push": {
                         "links": {
-                            "link": link,
-                            "episode_info": str(episode_info) if episode_info else None
+                            "button_name": clean_button,
+                            "link": clean_link
                         }
                     }
                 },
                 upsert=True
             )
-
-    async def search_posts(self, query):
-        """Fuzzy/Regex Search for Title Match"""
-        query_regex = {"$regex": query.strip(), "$options": "i"}
-        cursor = self.posts.find({"title": query_regex})
-        return await cursor.to_list(length=None)
 
     async def get_all_posts(self):
         cursor = self.posts.find({})
@@ -55,7 +54,6 @@ class Database:
 
     # --- User Registration Logic ---
     async def add_user(self, user_id, first_name, username=None):
-        """अगर यूजर नया है तो रजिस्ट्रेशन करके True देगा, अगर पुराना है तो False देगा"""
         user = await self.users.find_one({"user_id": user_id})
         if not user:
             user_data = {
