@@ -62,14 +62,14 @@ def build_story_buttons_markup(buttons_list, page=0, story_id=""):
     nav_buttons = []
 
     if page == 0:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Back", callback_data="last_page_alert"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ ʙᴀᴄᴋ", callback_data="last_page_alert"))
     else:
-        nav_buttons.append(InlineKeyboardButton("⬅️ Back", callback_data=f"story_pg#{page - 1}#{story_id}"))
+        nav_buttons.append(InlineKeyboardButton("⬅️ ʙᴀᴄᴋ", callback_data=f"story_pg#{page - 1}#{story_id}"))
     
     nav_buttons.append(InlineKeyboardButton(f"📄 {page + 1}/{total_pages}", callback_data="pages_info"))
 
     if end < len(buttons_list):
-        nav_buttons.append(InlineKeyboardButton("Next ➡️", callback_data=f"story_pg#{page + 1}#{story_id}"))
+        nav_buttons.append(InlineKeyboardButton("ɴᴇxᴛ ➡️", callback_data=f"story_pg#{page + 1}#{story_id}"))
 
     if total_pages > 1:
         keyboard.append(nav_buttons)
@@ -92,7 +92,7 @@ async def smart_search_handler(user_query):
 
     matched_buttons = []
 
-    # 1. Exact Match Check (अगर स्टोरी का नाम सही है)
+    # 1. Exact Match Check
     for doc in all_docs:
         story_name = doc.get("story_name", "")
         
@@ -108,10 +108,10 @@ async def smart_search_handler(user_query):
                 if matched_buttons:
                     return doc, matched_buttons, "direct_button"
 
-            # (B) अगर यूजर ने सिर्फ सही स्टोरी नाम लिखा है -> पूरे बटन्स दो
+            # (B) अगर यूजर ने सिर्फ सही स्टोरी नाम लिखा है
             return doc, doc.get("buttons", []), "story_all"
 
-    # 2. Did You Mean Check (केवल तब जब नाम में गड़बड़/स्पेलिंग मिस्टेक हो)
+    # 2. Did You Mean Check
     all_story_names = [d.get("story_name") for d in all_docs if d.get("story_name")]
     best_matches = process.extract(
         story_clean_query,
@@ -120,7 +120,6 @@ async def smart_search_handler(user_query):
         limit=5
     )
     
-    # स्पेलिंग मिस्टेक होने पर सजेशन दें (55% से 85% के बीच मैच पर)
     suggestions = [match[0] for match in best_matches if 55 <= match[1] < 100]
     return None, suggestions, "suggestion"
 
@@ -138,50 +137,65 @@ async def search_handler(client, message):
             req_channel = str(Config.REQ_CHANNEL).replace("-100", "")
             invite_link = f"https://t.me/{Config.REQ_CHANNEL}" if not req_channel.isdigit() else f"https://t.me/c/{req_channel}/1"
             btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📢 Join Update Channel", url=invite_link)],
-                [InlineKeyboardButton("🔄 Verify / Try Again", url=f"https://t.me/{client.me.username}?start=start")]
+                [InlineKeyboardButton("📢 ᴊᴏɪɴ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ", url=invite_link)],
+                [InlineKeyboardButton("🔄 ᴠᴇʀɪғʏ / ᴛʀʏ ᴀɢᴀɪɴ", url=f"https://t.me/{client.me.username}?start=start")]
             ])
             await message.reply_text(
-                "⚠️ **Access Denied!**\n\n"
+                "⚠️ **ᴀᴄᴄᴇss ᴅᴇɴɪᴇᴅ!**\n\n"
                 "ʏᴏᴜ ᴍᴜsᴛ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ᴛᴏ sᴇᴀʀᴄʜ sᴛᴏʀɪᴇs.",
                 reply_markup=btn
             )
             return
 
-    user_query = message.text
+    user_query = message.text.strip()
+
+    # --- Step 1: Loading Message (Please Wait + User Query) ---
+    loading_msg = await message.reply_text(f"⏳ <b>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ</b>, {user_query}...**")
+    await asyncio.sleep(1.5)
+
     story_doc, results, result_type = await smart_search_handler(user_query)
 
-    # 1. DIRECT BUTTON या EXACT STORY MATCH (5 Min Auto Delete)
+    # --- Step 2: अगर सजेशन पर जा रहा है ---
+    if result_type == "suggestion":
+        await loading_msg.edit_text("🤖 <b>ᴀɪ ᴄʜᴇᴄᴋɪɴɢ</b>")
+        await asyncio.sleep(1.5)
+
+    # --- Step 3: Direct Button या Exact Match ---
     if result_type in ["direct_button", "story_all"] and results:
         markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"])
-        title_header = f"📖 **Story:** `{story_doc['story_name']}`"
+        title_header = f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`"
         if result_type == "direct_button":
-            title_header += f"\n🎯 **Matched Episode Result for:** `{user_query}`"
+            title_header += f"\n🎯 **ᴍᴀᴛᴄʜᴇᴅ ᴇᴘɪsᴏᴅᴇ ʀᴇsᴜʟᴛ ғᴏʀ:** `{user_query}`"
 
-        sent_msg = await message.reply_text(
+        await loading_msg.edit_text(
             f"{title_header}\n"
-            f"🔗 **Buttons Found:** `{len(results)}`\n\n"
-            f"⏱️ _This message will be deleted in 5 minutes._",
+            f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
+            f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._",
             reply_markup=markup
         )
-        asyncio.create_task(auto_delete_message(sent_msg, 300))
+        asyncio.create_task(auto_delete_message(loading_msg, 300))
         return
 
-    # 2. DID YOU MEAN (1 Min Auto Delete)
+    # --- Step 4: AI Suggestions / Did You Mean ---
     if result_type == "suggestion" and results:
         sug_buttons = []
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
-        sent_msg = await message.reply_text(
-            f"❌ No direct match found for `{user_query}`.\n\n**Did you mean?**\n\n"
-            f"⏱️ _This suggestion message will be deleted in 1 minute._",
+        await loading_msg.edit_text(
+            f"❌ **ɴᴏ ᴅɪʀᴇᴄᴛ ᴍᴀᴛᴄʜ ғᴏᴜɴᴅ ғᴏʀ `{user_query}`.**\n\n"
+            f"**🤖 ᴅɪᴅ ʏᴏᴜ ᴍᴇᴀɴ?**\n\n"
+            f"⏱️ _ᴛʜɪs sᴜɢɢᴇsᴛɪᴏɴ ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._",
             reply_markup=InlineKeyboardMarkup(sug_buttons)
         )
-        asyncio.create_task(auto_delete_message(sent_msg, 60))
+        asyncio.create_task(auto_delete_message(loading_msg, 60))
         return
 
-    # 3. SILENT MODE: आउट ऑफ डेटाबेस होने पर बोट शांत रहेगा।
+    # --- Step 5: Silent Mode (अगर DB में डेटा न हो तो डिलीट) ---
+    try:
+        await loading_msg.delete()
+    except Exception:
+        pass
 
 
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
@@ -189,42 +203,40 @@ async def dym_story_callback(client, query):
     user_id = query.from_user.id
 
     if not await check_verification(client, user_id):
-        await query.answer("Please join our update channel first!", show_alert=True)
+        await query.answer("ᴘʟᴇᴀsᴇ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ғɪʀsᴛ!", show_alert=True)
         return
 
     story_name = query.data.split("#")[1]
     story_doc = await db.posts.find_one({"story_name": story_name})
 
     if story_doc and story_doc.get("buttons"):
-        # 1. Did You Mean मैसेज को तुरंत डिलीट करें
         try:
             await query.message.delete()
         except Exception:
             pass
 
-        # 2. बटन्स का Markup तैयार करके नया मैसेज भेजें
         markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name)
         total_btns = len(story_doc["buttons"])
         
         sent_msg = await client.send_message(
             chat_id=query.message.chat.id,
             text=(
-                f"📖 **Story:** `{story_doc['story_name']}`\n"
-                f"🔗 **Available Links/Episodes:** `{total_btns}`\n\n"
-                f"⏱️ _This message will be deleted in 5 minutes._"
+                f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`\n"
+                f"🔗 **ᴀᴠᴀɪʟᴀʙʟᴇ ʟɪɴᴋs/ᴇᴘɪsᴏᴅᴇs:** `{total_btns}`\n\n"
+                f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
             ),
             reply_markup=markup
         )
         asyncio.create_task(auto_delete_message(sent_msg, 300))
         await query.answer()
     else:
-        await query.answer("No buttons found for this story!", show_alert=True)
+        await query.answer("ɴᴏ ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ ғᴏʀ ᴛʜɪs sᴛᴏʀʏ!", show_alert=True)
 
 
 @Client.on_callback_query(filters.regex(r"^story_pg#"))
 async def story_pagination_callback(client, query):
     if not await check_verification(client, query.from_user.id):
-        await query.answer("Please join our update channel first!", show_alert=True)
+        await query.answer("ᴘʟᴇᴀsᴇ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ғɪʀsᴛ!", show_alert=True)
         return
 
     _, page_str, story_name = query.data.split("#")
@@ -232,25 +244,25 @@ async def story_pagination_callback(client, query):
 
     story_doc = await db.posts.find_one({"story_name": story_name})
     if not story_doc or not story_doc.get("buttons"):
-        await query.answer("Story data expired!", show_alert=True)
+        await query.answer("sᴛᴏʀʏ ᴅᴀᴛᴀ ᴇxᴘɪʀᴇᴅ!", show_alert=True)
         return
 
     markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name)
     total_btns = len(story_doc["buttons"])
     
     await query.message.edit_text(
-        f"📖 **Story:** `{story_doc['story_name']}`\n"
-        f"🔗 **Available Links/Episodes:** `{total_btns}`\n\n"
-        f"⏱️ _This message will be deleted in 5 minutes._",
+        f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`\n"
+        f"🔗 **ᴀᴠᴀɪʟᴀʙʟᴇ ʟɪɴᴋs/ᴇᴘɪsᴏᴅᴇs:** `{total_btns}`\n\n"
+        f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._",
         reply_markup=markup
     )
 
 
 @Client.on_callback_query(filters.regex("^last_page_alert$"))
 async def last_page_alert_callback(client, query):
-    await query.answer("This is the first/last page", show_alert=True)
+    await query.answer("ᴛʜɪs ɪs ᴛʜᴇ ғɪʀsᴛ/ʟᴀsᴛ ᴘᴀɢᴇ", show_alert=True)
 
 
 @Client.on_callback_query(filters.regex("^pages_info$"))
 async def pages_info_callback(client, query):
-    await query.answer("Current Page Number", show_alert=False)
+    await query.answer("ᴄᴜʀʀᴇɴᴛ ᴘᴀɢᴇ ɴᴜᴍʙᴇʀ", show_alert=False)
