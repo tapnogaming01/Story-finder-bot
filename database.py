@@ -47,6 +47,7 @@ class Database:
                         "created_at": datetime.utcnow()
                     },
                     "$set": {
+                        "story_lower": story_lower,
                         "updated_at": datetime.utcnow()
                     },
                     "$addToSet": {
@@ -68,7 +69,6 @@ class Database:
         बटन के लंबे नामों को इग्नोर करके।
         """
         query_regex = {"$regex": query.strip(), "$options": "i"}
-        # केवल story_name और buttons return करेगा
         cursor = self.posts.find(
             {"story_name": query_regex},
             {"story_name": 1, "buttons": 1}
@@ -87,6 +87,25 @@ class Database:
         cursor = self.posts.find({})
         return await cursor.to_list(length=None)
 
+    # --- Delete Logic (New Functions) ---
+    async def delete_story(self, story_name):
+        """पूरी एक स्टोरी और उसके सभी बटन्स को डिलीट करेगा"""
+        result = await self.posts.delete_one({"story_lower": story_name.lower()})
+        return result.deleted_count > 0
+
+    async def delete_button_from_story(self, story_name, button_text):
+        """किसी विशिष्ट स्टोरी से केवल एक बटन/एपिसोड लिंक डिलीट करेगा"""
+        result = await self.posts.update_one(
+            {"story_lower": story_name.lower()},
+            {"$pull": {"buttons": {"button_text": button_text}}}
+        )
+        return result.modified_count > 0
+
+    async def drop_all_posts(self):
+        """पूरे डेटाबेस संग्रह को खाली (Delete All) कर देगा"""
+        await self.posts.delete_many({})
+        return True
+
     # --- User Registration Logic ---
     async def add_user(self, user_id, first_name, username=None):
         """अगर यूजर नया है तो रजिस्ट्रेशन करके True देगा, अगर पुराना है तो False देगा"""
@@ -99,8 +118,8 @@ class Database:
                 "joined_at": datetime.utcnow()
             }
             await self.users.insert_one(user_data)
-            return True  # New User Registered
-        return False  # Already Exists
+            return True
+        return False
 
     async def total_users_count(self):
         return await self.users.count_documents({})
