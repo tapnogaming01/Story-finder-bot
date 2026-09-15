@@ -17,4 +17,7 @@ class Config:
     
     # ⬇️ यह नई लाइन जोड़ें (ADMINS list definition)
     ADMINS = [int(x) for x in os.environ.get("ADMINS", "5898522531").split() if x.isdigit()]
+    # config.py फ़ाइल में अपनी Sticker File ID डालें
+    SEARCH_STICKER_ID = "CAACAgUAAxkBAAEBUAdqqTwpBKtnJUffWa0XeQABA5CchHsAAl4MAAKxjqhVi042_bzIzXEeBA"  # Telegram से ली गई Sticker File ID
+
     
