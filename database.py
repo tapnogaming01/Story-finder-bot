@@ -17,7 +17,7 @@ class Database:
         """
         parts = [p.strip() for p in caption_text.split('|')]
         
-        # अगर 3 पार्ट्स (Story | Button Text | Link) नहीं हैं तो प्रोसेस न करें
+        # अगर 3 पार्ट्स नहीं हैं तो प्रोसेस न करें
         if len(parts) < 3:
             return False
 
@@ -27,7 +27,7 @@ class Database:
 
         story_lower = story_name.lower()
 
-        # check duplicate button text or link in same story
+        # Check duplicate button text or link in same story
         existing_doc = await self.posts.find_one({
             "story_lower": story_lower,
             "$or": [
@@ -37,8 +37,7 @@ class Database:
         })
 
         if not existing_doc:
-            # Agar story nahi hai to create hogi ($setOnInsert),
-            # aur naya button array me push ho jayega ($addToSet)
+            # $push + $position: 0 से नया बटन लिस्ट में सबसे ऊपर (Top) ऐड होगा
             await self.posts.update_one(
                 {"story_lower": story_lower},
                 {
@@ -50,10 +49,13 @@ class Database:
                         "story_lower": story_lower,
                         "updated_at": datetime.utcnow()
                     },
-                    "$addToSet": {
+                    "$push": {
                         "buttons": {
-                            "button_text": button_text,
-                            "link": link
+                            "$each": [{
+                                "button_text": button_text,
+                                "link": link
+                            }],
+                            "$position": 0
                         }
                     }
                 },
@@ -65,8 +67,7 @@ class Database:
     # --- Suggestions / Did You Mean Logic ---
     async def get_story_suggestions(self, query):
         """
-        यूज़र जब सर्च करेगा तो केवल UNIQUE Story Names के आधार पर रिजल्ट लाएगा,
-        बटन के लंबे नामों को इग्नोर करके।
+        यूज़र जब सर्च करेगा तो केवल UNIQUE Story Names के आधार पर रिजल्ट लाएगा
         """
         query_regex = {"$regex": query.strip(), "$options": "i"}
         cursor = self.posts.find(
@@ -87,7 +88,7 @@ class Database:
         cursor = self.posts.find({})
         return await cursor.to_list(length=None)
 
-    # --- Delete Logic (New Functions) ---
+    # --- Delete Logic ---
     async def delete_story(self, story_name):
         """पूरी एक स्टोरी और उसके सभी बटन्स को डिलीट करेगा"""
         result = await self.posts.delete_one({"story_lower": story_name.lower()})
