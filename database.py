@@ -1,5 +1,5 @@
 import motor.motor_asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from config import Config
 
 class Database:
@@ -8,6 +8,7 @@ class Database:
         self.db = self.client[Config.DATABASE_NAME]
         self.posts = self.db.posts
         self.users = self.db.users
+        self.settings = self.db.settings  # ⚙️ Admin Settings for Text vs Button layout
 
     # --- Upgraded Posts Logic (Story | Button Text | Link Support) ---
     async def save_post(self, caption_text):
@@ -43,11 +44,11 @@ class Database:
                 {
                     "$setOnInsert": {
                         "story_name": story_name,
-                        "created_at": datetime.utcnow()
+                        "created_at": datetime.now(timezone.utc)
                     },
                     "$set": {
                         "story_lower": story_lower,
-                        "updated_at": datetime.utcnow()
+                        "updated_at": datetime.now(timezone.utc)
                     },
                     "$push": {
                         "buttons": {
@@ -107,6 +108,27 @@ class Database:
         await self.posts.delete_many({})
         return True
 
+    # --- Global BOT Style Settings Logic ---
+    async def get_bot_style(self):
+        """
+        बॉट का मौजूदा लेआउट स्टाइल (button या text) निकालेगा
+        """
+        config = await self.settings.find_one({"setting_id": "bot_layout"})
+        if config and "layout_style" in config:
+            return config["layout_style"]
+        return "button"  # डिफ़ॉल्ट रूप से Button format रहेगा
+
+    async def set_bot_style(self, style_name):
+        """
+        ऑनर के लिए रिस्पॉन्स स्टाइल (button / text) सेव या अपडेट करेगा
+        """
+        await self.settings.update_one(
+            {"setting_id": "bot_layout"},
+            {"$set": {"layout_style": style_name}},
+            upsert=True
+        )
+        return True
+
     # --- User Registration Logic ---
     async def add_user(self, user_id, first_name, username=None):
         """अगर यूजर नया है तो रजिस्ट्रेशन करके True देगा, अगर पुराना है तो False देगा"""
@@ -116,7 +138,7 @@ class Database:
                 "user_id": user_id,
                 "first_name": first_name,
                 "username": username,
-                "joined_at": datetime.utcnow()
+                "joined_at": datetime.now(timezone.utc)
             }
             await self.users.insert_one(user_data)
             return True
