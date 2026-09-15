@@ -2,26 +2,173 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Request Story</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; padding: 15px; background: #fff; }
-        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #0088cc; color: white; border: none; border-radius: 5px; font-weight: bold; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #f8fafc);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .card {
+            background: var(--tg-theme-secondary-bg-color, #1e293b);
+            width: 100%;
+            max-width: 400px;
+            padding: 24px;
+            border-radius: 20px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            animation: fadeIn 0.4s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .header-icon {
+            font-size: 42px;
+            margin-bottom: 8px;
+            display: inline-block;
+        }
+
+        .header h2 {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--tg-theme-text-color, #fff);
+            letter-spacing: 0.5px;
+        }
+
+        .header p {
+            font-size: 13px;
+            color: var(--tg-theme-hint-color, #94a3b8);
+            margin-top: 4px;
+        }
+
+        .form-group {
+            margin-bottom: 18px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: var(--tg-theme-text-color, #e2e8f0);
+        }
+
+        input, textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1.5px solid rgba(255, 255, 255, 0.1);
+            background: var(--tg-theme-bg-color, #0f172a);
+            color: var(--tg-theme-text-color, #fff);
+            font-size: 14px;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input:focus, textarea:focus {
+            border-color: var(--tg-theme-button-color, #38bdf8);
+            box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+        }
+
+        textarea {
+            resize: none;
+            height: 90px;
+        }
+
+        .submit-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            background: var(--tg-theme-button-color, #0284c7);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, opacity 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+        }
+
+        .submit-btn:active {
+            transform: scale(0.98);
+        }
+
+        .submit-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Spinner Loader */
+        .spinner {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #ffffff;
+            border-bottom-color: transparent;
+            border-radius: 50%;
+            display: inline-block;
+            box-sizing: border-box;
+            animation: rotation 1s linear infinite;
+        }
+
+        @keyframes rotation {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
-    <h2>📖 Request a Story</h2>
-    <form id="requestForm">
-        <label>Story Name:</label>
-        <input type="text" id="storyName" required placeholder="Story Name...">
-        
-        <label>Details / Episode (Optional):</label>
-        <textarea id="details" placeholder="Specify episode or details..."></textarea>
-        
-        <button type="submit" id="submitBtn">Submit Request</button>
-    </form>
+
+    <div class="card">
+        <div class="header">
+            <span class="header-icon">📖</span>
+            <h2>Request a Story</h2>
+            <p>Fill details below to request your content</p>
+        </div>
+
+        <form id="requestForm">
+            <div class="form-group">
+                <label for="storyName">Story Name <span style="color: #ef4444;">*</span></label>
+                <input type="text" id="storyName" placeholder="Enter story or novel title..." required autocomplete="off">
+            </div>
+
+            <div class="form-group">
+                <label for="details">Episode / Details (Optional)</label>
+                <textarea id="details" placeholder="Specify episode numbers, author, or audio mode..."></textarea>
+            </div>
+
+            <button type="submit" id="submitBtn" class="submit-btn">
+                <span id="btnText">Submit Request</span>
+            </button>
+        </form>
+    </div>
 
     <script>
         const tg = window.Telegram.WebApp;
@@ -30,22 +177,25 @@
 
         document.getElementById('requestForm').addEventListener('submit', async function(e) {
             e.preventDefault();
-            const btn = document.getElementById('submitBtn');
-            btn.innerText = "Submitting...";
-            btn.disabled = true;
+
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            
+            // Show Loader State
+            submitBtn.disabled = true;
+            btnText.innerHTML = `<span class="spinner"></span> Submitting...`;
 
             const user = tg.initDataUnsafe.user || {};
 
             const payload = {
-                story_name: document.getElementById('storyName').value,
-                details: document.getElementById('details').value,
+                story_name: document.getElementById('storyName').value.trim(),
+                details: document.getElementById('details').value.trim() || "N/A",
                 user_id: user.id || "Unknown",
                 first_name: user.first_name || "User",
-                username: user.username || ""
+                username: user.username ? `@${user.username}` : "None"
             };
 
             try {
-                // आपके Server Endpoint पर डेटा पोस्ट करना
                 const response = await fetch('/api/request_story', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -53,19 +203,25 @@
                 });
 
                 if (response.ok) {
-                    tg.showAlert("✅ Your request has been submitted!");
-                    tg.close();
+                    tg.showAlert("✅ Request submitted successfully!\nOur team will upload it soon.", () => {
+                        tg.close();
+                    });
                 } else {
-                    alert("Error submitting request. Try again.");
-                    btn.disabled = false;
-                    btn.innerText = "Submit Request";
+                    tg.showAlert("❌ Server error! Please try again later.");
+                    resetBtn();
                 }
             } catch (err) {
-                alert("Network error. Try again.");
-                btn.disabled = false;
-                btn.innerText = "Submit Request";
+                tg.showAlert("⚠️ Network error! Check connection.");
+                resetBtn();
             }
         });
+
+        function resetBtn() {
+            const submitBtn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            submitBtn.disabled = false;
+            btnText.innerText = "Submit Request";
+        }
     </script>
 </body>
 </html>
