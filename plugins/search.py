@@ -1,5 +1,6 @@
 import re
 import asyncio
+from urllib.parse import quote_plus
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait
@@ -90,7 +91,7 @@ def generate_text_response(story_name, buttons_list, page=0, user_query="", resu
     
     res_text += f"🔗 **ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ:** `{len(buttons_list)}`\n\n"
 
-    # हर एक आइटम के बीच खाली लाइन और नया Blockquote (>) ताकि सब अलग-अलग दिखें
+    # हर एक आइटम के बीच खाली लाइन और नया Blockquote (>)
     for idx, item in enumerate(current_items, start=start + 1):
         btn_label = item.get("button_text", "Open Link")
         btn_link = item.get("link", "")
@@ -139,7 +140,11 @@ async def smart_search_handler(user_query):
     )
     
     suggestions = [match[0] for match in best_matches if 55 <= match[1] < 100]
-    return None, suggestions, "suggestion"
+    if suggestions:
+        return None, suggestions, "suggestion"
+
+    # 3. No match found at all
+    return None, [], "none"
 
 
 @Client.on_message(filters.text & (filters.private | filters.group) & ~filters.command(["start", "help", "about", "index", "index_last", "settings", "mode"]))
@@ -178,7 +183,7 @@ async def search_handler(client, message):
     except Exception:
         pass
 
-    # --- Direct Button / Exact Match (Check Owner Style) ---
+    # --- Direct Button / Exact Match ---
     if result_type in ["direct_button", "story_all"] and results:
         bot_style = await db.get_bot_style()
 
@@ -229,6 +234,28 @@ async def search_handler(client, message):
                 f"⏱️ _ᴛʜɪs sᴜɢɢᴇsᴛɪᴏɴ ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
             ),
             reply_markup=InlineKeyboardMarkup(sug_buttons)
+        )
+        asyncio.create_task(auto_delete_message(sent_msg, 60))
+        return
+
+    # --- No Results Found (Google Search Button Added) ---
+    if result_type == "none" or not results:
+        encoded_query = quote_plus(user_query)
+        google_search_url = f"https://www.google.com/search?q={encoded_query}"
+        
+        no_res_markup = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 sᴇᴀʀᴄʜ ᴏɴ ɢᴏᴏɢʟᴇ", url=google_search_url)]
+        ])
+
+        sent_msg = await client.send_message(
+            chat_id=message.chat.id,
+            text=(
+                f"❌ **ɴᴏ ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ ғᴏʀ:** `{user_query}`\n\n"
+                f"Please check your spelling or search on Google using the button below.\n\n"
+                f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
+            ),
+            reply_markup=no_res_markup,
+            disable_web_page_preview=True
         )
         asyncio.create_task(auto_delete_message(sent_msg, 60))
         return
