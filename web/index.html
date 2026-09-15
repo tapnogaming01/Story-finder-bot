@@ -1,81 +1,71 @@
 <!DOCTYPE html>
-<html lang="hi">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Request Story</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            background-color: var(--tg-theme-bg-color, #17212b);
-            color: var(--tg-theme-text-color, #ffffff);
-            padding: 20px;
-            margin: 0;
-        }
-        .container {
-            max-width: 400px;
-            margin: 0 auto;
-        }
-        h2 {
-            text-align: center;
-            color: var(--tg-theme-button-color, #64b5ef);
-        }
-        input, textarea {
-            width: 100%;
-            padding: 12px;
-            margin: 10px 0;
-            border: 1px solid #2b5278;
-            border-radius: 8px;
-            box-sizing: border-box;
-            background-color: var(--tg-theme-secondary-bg-color, #242f3d);
-            color: var(--tg-theme-text-color, #ffffff);
-        }
-        button {
-            width: 100%;
-            padding: 12px;
-            background-color: var(--tg-theme-button-color, #64b5ef);
-            color: var(--tg-theme-button-text-color, #ffffff);
-            border: none;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: bold;
-            cursor: pointer;
-            margin-top: 10px;
-        }
+        body { font-family: sans-serif; padding: 15px; background: #fff; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #0088cc; color: white; border: none; border-radius: 5px; font-weight: bold; }
     </style>
 </head>
 <body>
-
-<div class="container">
     <h2>📖 Request a Story</h2>
     <form id="requestForm">
         <label>Story Name:</label>
-        <input type="text" id="story_name" placeholder="Enter story name..." required>
-
-        <label>Details / Episode (Optional):</label>
-        <textarea id="story_details" rows="3" placeholder="Specify episode or details..."></textarea>
-
-        <button type="submit">Submit Request</button>
-    </form>
-</div>
-
-<script>
-    const tg = window.Telegram.WebApp;
-    tg.expand();
-
-    document.getElementById('requestForm').addEventListener('submit', function(e) {
-        e.preventDefault();
+        <input type="text" id="storyName" required placeholder="Story Name...">
         
-        const data = {
-            story_name: document.getElementById('story_name').value,
-            details: document.getElementById('story_details').value
-        };
+        <label>Details / Episode (Optional):</label>
+        <textarea id="details" placeholder="Specify episode or details..."></textarea>
+        
+        <button type="submit" id="submitBtn">Submit Request</button>
+    </form>
 
-        tg.sendData(JSON.stringify(data));
-        tg.close();
-    });
-</script>
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
 
+        document.getElementById('requestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn = document.getElementById('submitBtn');
+            btn.innerText = "Submitting...";
+            btn.disabled = true;
+
+            const user = tg.initDataUnsafe.user || {};
+
+            const payload = {
+                story_name: document.getElementById('storyName').value,
+                details: document.getElementById('details').value,
+                user_id: user.id || "Unknown",
+                first_name: user.first_name || "User",
+                username: user.username || ""
+            };
+
+            try {
+                // आपके Server Endpoint पर डेटा पोस्ट करना
+                const response = await fetch('/api/request_story', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (response.ok) {
+                    tg.showAlert("✅ Your request has been submitted!");
+                    tg.close();
+                } else {
+                    alert("Error submitting request. Try again.");
+                    btn.disabled = false;
+                    btn.innerText = "Submit Request";
+                }
+            } catch (err) {
+                alert("Network error. Try again.");
+                btn.disabled = false;
+                btn.innerText = "Submit Request";
+            }
+        });
+    </script>
 </body>
 </html>
