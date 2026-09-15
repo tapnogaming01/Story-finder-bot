@@ -171,17 +171,28 @@ async def search_handler(client, message):
 
     user_query = message.text.strip()
 
-    # 1. सर्च लोडिंग मैसेज भेजना
-    loading_msg = await message.reply_text(f"⏳ <b>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ</b>, {user_query}...**")
+    # 1. सर्च के दौरान "Please Wait" टेक्स्ट की जगह स्टीकर भेजना
+    loading_sticker = None
+    if getattr(Config, "SEARCH_STICKER_ID", None):
+        try:
+            loading_sticker = await client.send_sticker(
+                chat_id=message.chat.id,
+                sticker=Config.SEARCH_STICKER_ID
+            )
+        except Exception:
+            pass
+
     await asyncio.sleep(1.0)
 
+    # 2. बैकग्राउंड में सर्च प्रोसेस करना
     story_doc, results, result_type = await smart_search_handler(user_query)
 
-    # 2. लोडिंग वाले मैसेज को डिलीट करना
-    try:
-        await loading_msg.delete()
-    except Exception:
-        pass
+    # 3. रिजल्ट देने से ठीक पहले लोडिंग वाले स्टीकर को डिलीट करना
+    if loading_sticker:
+        try:
+            await loading_sticker.delete()
+        except Exception:
+            pass
 
     # --- Direct Button / Exact Match ---
     if result_type in ["direct_button", "story_all"] and results:
@@ -212,7 +223,7 @@ async def search_handler(client, message):
                 chat_id=message.chat.id,
                 text=(
                     f"{title_header}\n"
-                    f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
+                    f"🔗 **ʙᴜᴛᴛᴏNs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
                     f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
                 ),
                 reply_markup=markup
