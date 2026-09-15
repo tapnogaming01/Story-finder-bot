@@ -44,6 +44,5 @@ async def start_services():
     await app.stop()
 
 if __name__ == "__main__":
-    # Correct way to run async main loop
     loop = asyncio.get_event_loop()
     loop.run_until_complete(start_services())
