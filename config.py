@@ -1,3 +1,4 @@
+
 import os
 from dotenv import load_dotenv
 
@@ -13,3 +14,7 @@ class Config:
     LOG_CHANNEL = int(os.environ.get("LOG_CHANNEL", "-100987654321"))  # Log Channel ID
     OWNER_ID = int(os.environ.get("OWNER_ID", "123456789"))
     REQ_CHANNEL = os.environ.get("REQ_CHANNEL", "")
+    
+    # ⬇️ यह नई लाइन जोड़ें (ADMINS list definition)
+    ADMINS = [int(x) for x in os.environ.get("ADMINS", "5898522531").split() if x.isdigit()]
+    
