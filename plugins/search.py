@@ -45,15 +45,23 @@ def is_number_in_button_text(searched_num, button_text):
 
     return False
 
-# 🔹 Helper Function: Mini App Button
-def get_request_button():
+# 🔹 Helper Function: Mini App Button (PM और Group दोनों के लिए फ़िक्स)
+def get_request_button(chat_type="private", bot_username=""):
     mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
-    if mini_app_url:
+    if not mini_app_url:
+        return None
+
+    # अगर चैट Private (PM) है, तो डायरेक्ट WebApp बटन
+    if chat_type == "private":
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", web_app=WebAppInfo(url=mini_app_url))]
-    return None
+    
+    # अगर चैट Group/Supergroup है, तो Deep-Link URL बटन (जो PM में Mini App खोलेगा)
+    else:
+        pm_link = f"https://t.me/{bot_username}?start=request"
+        return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", url=pm_link)]
 
 # 1. Markup Builder
-def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button"):
+def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username=""):
     page_size = 10
     start = page * page_size
     end = start + page_size
@@ -84,8 +92,8 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button")
     if total_pages > 1 or mode == "text":
         keyboard.append(nav_buttons)
 
-    # 📌 हर रिजल्ट के नीचे Request Story बटन
-    req_btn = get_request_button()
+    # 📌 Request Story बटन जोड़ें (Chat Type के अनुसार)
+    req_btn = get_request_button(chat_type=chat_type, bot_username=bot_username)
     if req_btn:
         keyboard.append(req_btn)
 
@@ -164,7 +172,9 @@ async def search_handler(client, message):
     if not user_id:
         return
 
-    if message.chat.type.name == "PRIVATE":
+    chat_type = "private" if message.chat.type.name == "PRIVATE" else "group"
+
+    if chat_type == "private":
         is_joined = await check_verification(client, user_id)
         if not is_joined:
             req_channel = str(Config.REQ_CHANNEL).replace("-100", "")
@@ -207,7 +217,7 @@ async def search_handler(client, message):
 
         if bot_style == "text":
             res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type)
-            markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="text")
+            markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="text", chat_type=chat_type, bot_username=client.me.username)
             
             sent_msg = await client.send_message(
                 chat_id=message.chat.id,
@@ -219,7 +229,7 @@ async def search_handler(client, message):
             return
 
         else:
-            markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="button")
+            markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="button", chat_type=chat_type, bot_username=client.me.username)
             title_header = f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`"
             if result_type == "direct_button":
                 title_header += f"\n🎯 **ᴍᴀᴛᴄʜᴇᴅ ᴇᴘɪsᴏᴅᴇ ʀᴇsᴜʟᴛ ғᴏʀ:** `{user_query}`"
@@ -242,7 +252,7 @@ async def search_handler(client, message):
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
-        req_btn = get_request_button()
+        req_btn = get_request_button(chat_type=chat_type, bot_username=client.me.username)
         if req_btn:
             sug_buttons.append(req_btn)
 
@@ -267,7 +277,7 @@ async def search_handler(client, message):
             [InlineKeyboardButton("🔍 sᴇᴀʀᴄʜ ᴏɴ ɢᴏᴏɢʟᴇ", url=google_search_url)]
         ]
 
-        req_btn = get_request_button()
+        req_btn = get_request_button(chat_type=chat_type, bot_username=client.me.username)
         if req_btn:
             buttons.append(req_btn)
 
@@ -285,43 +295,30 @@ async def search_handler(client, message):
         return
 
 
-# 🔹 Fallback Handler: अगर Telegram से direct web_app_data आए (Private Chat में)
-@Client.on_message(filters.service)
-async def handle_mini_app_request(client, message):
-    if not hasattr(message, 'web_app_data') or not message.web_app_data:
-        return
-
-    try:
-        raw_data = message.web_app_data.data
-        data = json.loads(raw_data)
-        
-        story_name = data.get("story_name", "N/A")
-        details = data.get("details", "None")
-        user = message.from_user
-
-        await message.reply_text(
-            f"✅ **ʀᴇǫᴜᴇsᴛ sᴜʙᴍɪᴛᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!**\n\n"
-            f"📖 **sᴛᴏʀʏ:** `{story_name}`\n"
-            f"📝 **ᴅᴇᴛᴀɪʟs:** `{details}`\n\n"
-            f"Our admins will process it soon!"
-        )
-
-        if getattr(Config, "LOG_CHANNEL", None):
-            log_text = (
-                f"📥 **ɴᴇᴡ sᴛᴏʀʏ ʀᴇǫᴜᴇsᴛ (ᴍɪɴɪ ᴀᴘᴘ)**\n\n"
-                f"👤 **ᴜsᴇʀ:** {user.mention} (`{user.id}`)\n"
-                f"📖 **sᴛᴏʀʏ:** `{story_name}`\n"
-                f"📝 **ᴅᴇᴛᴀɪʟs:** `{details}`"
+# 🔹 Start Command Handler में `/start request` ट्रिगर करना
+@Client.on_message(filters.command("start") & filters.private)
+async def start_handler(client, message):
+    text = message.text
+    # अगर ग्रुप के बटन से यूज़र रिडायरेक्ट होकर आया है:
+    if len(text.split()) > 1 and text.split()[1] == "request":
+        mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
+        if mini_app_url:
+            btn = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📝 ᴏᴘᴇɴ ʀᴇǫᴜᴇsᴛ ғᴏʀᴍ", web_app=WebAppInfo(url=mini_app_url))]
+            ])
+            await message.reply_text(
+                "📝 **sᴛᴏʀʏ ʀᴇǫᴜᴇsᴛ**\n\nClick the button below to open the request form:",
+                reply_markup=btn
             )
-            await client.send_message(chat_id=int(Config.LOG_CHANNEL), text=log_text)
+            return
 
-    except Exception as e:
-        print(f"Error handling web_app_data: {e}")
+    await message.reply_text("Hello! I am your Story Search Bot.")
 
 
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
 async def dym_story_callback(client, query):
     user_id = query.from_user.id
+    chat_type = "private" if query.message.chat.type.name == "PRIVATE" else "group"
 
     if not await check_verification(client, user_id):
         await query.answer("ᴘʟᴇᴀsᴇ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ғɪʀsᴛ!", show_alert=True)
@@ -340,7 +337,7 @@ async def dym_story_callback(client, query):
 
         if bot_style == "text":
             res_text = generate_text_response(story_name, story_doc["buttons"], page=0)
-            markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name, mode="text")
+            markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name, mode="text", chat_type=chat_type, bot_username=client.me.username)
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
                 text=res_text,
@@ -348,7 +345,7 @@ async def dym_story_callback(client, query):
                 disable_web_page_preview=True
             )
         else:
-            markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name, mode="button")
+            markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name, mode="button", chat_type=chat_type, bot_username=client.me.username)
             total_btns = len(story_doc["buttons"])
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
@@ -368,6 +365,8 @@ async def dym_story_callback(client, query):
 
 @Client.on_callback_query(filters.regex(r"^story_pg#"))
 async def story_pagination_callback(client, query):
+    chat_type = "private" if query.message.chat.type.name == "PRIVATE" else "group"
+    
     if not await check_verification(client, query.from_user.id):
         await query.answer("ᴘʟᴇᴀsᴇ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ғɪʀsᴛ!", show_alert=True)
         return
@@ -384,10 +383,10 @@ async def story_pagination_callback(client, query):
 
     if bot_style == "text":
         res_text = generate_text_response(story_name, story_doc["buttons"], page=page)
-        markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name, mode="text")
+        markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name, mode="text", chat_type=chat_type, bot_username=client.me.username)
         await query.message.edit_text(res_text, reply_markup=markup, disable_web_page_preview=True)
     else:
-        markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name, mode="button")
+        markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name, mode="button", chat_type=chat_type, bot_username=client.me.username)
         total_btns = len(story_doc["buttons"])
         await query.message.edit_text(
             f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`\n"
