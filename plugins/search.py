@@ -45,14 +45,14 @@ def is_number_in_button_text(searched_num, button_text):
 
     return False
 
-# 🔹 Helper Function: Mini App Button (हर जगह नीचे लगाने के लिए)
+# 🔹 Helper Function: Mini App Button
 def get_request_button():
     mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
     if mini_app_url:
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", web_app=WebAppInfo(url=mini_app_url))]
     return None
 
-# 1. Markup Builder (सर्च रिजल्ट्स और शॉर्टनर लिंक्स के लिए)
+# 1. Markup Builder
 def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button"):
     page_size = 10
     start = page * page_size
@@ -61,7 +61,7 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button")
 
     keyboard = []
 
-    # 🔘 BUTTON MODE: 60.in या डायरेक्ट लिंक्स के बटन जोड़ना
+    # 🔘 BUTTON MODE
     if mode == "button":
         for item in current_page_items:
             btn_text = item.get("button_text", "Open Link")
@@ -84,7 +84,7 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button")
     if total_pages > 1 or mode == "text":
         keyboard.append(nav_buttons)
 
-    # 📌 हर रिजल्ट के नीचे 📝 REQUEST STORY का बटन जोड़ें
+    # 📌 हर रिजल्ट के नीचे Request Story बटन
     req_btn = get_request_button()
     if req_btn:
         keyboard.append(req_btn)
@@ -182,7 +182,6 @@ async def search_handler(client, message):
 
     user_query = message.text.strip()
 
-    # स्टीकर लोड करें
     loading_sticker = None
     if getattr(Config, "SEARCH_STICKER_ID", None):
         try:
@@ -202,7 +201,7 @@ async def search_handler(client, message):
         except Exception:
             pass
 
-    # --- Direct Button / Exact Match (60.in लिंक या टेक्स्ट मोड) ---
+    # --- Direct Button / Exact Match ---
     if result_type in ["direct_button", "story_all"] and results:
         bot_style = await db.get_bot_style()
 
@@ -243,7 +242,6 @@ async def search_handler(client, message):
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
-        # Did You Mean लिस्ट के नीचे Request Button जोड़ना
         req_btn = get_request_button()
         if req_btn:
             sug_buttons.append(req_btn)
@@ -287,9 +285,12 @@ async def search_handler(client, message):
         return
 
 
-# 🔹 Mini App Submission Handler (यूज़र द्वारा फ़ॉर्म सबमिट करने पर)
-@Client.on_message(filters.service & filters.web_app_data)
+# 🔹 FIX: Mini App Submission Handler (filters.service के ज़रिए web_app_data पकड़ना)
+@Client.on_message(filters.service)
 async def handle_mini_app_request(client, message):
+    if not message.web_app_data:
+        return
+
     try:
         raw_data = message.web_app_data.data
         data = json.loads(raw_data)
