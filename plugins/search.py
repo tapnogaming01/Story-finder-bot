@@ -1,8 +1,9 @@
 import re
+import json
 import asyncio
 from urllib.parse import quote_plus
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from pyrogram.errors import FloodWait
 from database import db
 from rapidfuzz import process, fuzz
@@ -44,7 +45,14 @@ def is_number_in_button_text(searched_num, button_text):
 
     return False
 
-# 1. Markup Builder (Button & Text दोनों Modes के लिए)
+# 🔹 Helper Function: Mini App Button (हर जगह नीचे लगाने के लिए)
+def get_request_button():
+    mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
+    if mini_app_url:
+        return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", web_app=WebAppInfo(url=mini_app_url))]
+    return None
+
+# 1. Markup Builder (सर्च रिजल्ट्स और शॉर्टनर लिंक्स के लिए)
 def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button"):
     page_size = 10
     start = page * page_size
@@ -53,7 +61,7 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button")
 
     keyboard = []
 
-    # 🔘 BUTTON MODE: Add Episode Links as Buttons
+    # 🔘 BUTTON MODE: 60.in या डायरेक्ट लिंक्स के बटन जोड़ना
     if mode == "button":
         for item in current_page_items:
             btn_text = item.get("button_text", "Open Link")
@@ -76,9 +84,14 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button")
     if total_pages > 1 or mode == "text":
         keyboard.append(nav_buttons)
 
+    # 📌 हर रिजल्ट के नीचे 📝 REQUEST STORY का बटन जोड़ें
+    req_btn = get_request_button()
+    if req_btn:
+        keyboard.append(req_btn)
+
     return InlineKeyboardMarkup(keyboard)
 
-# 2. Text Format Response Generator (Har Item ka Alag Blockquote `>`)
+# 2. Text Format Response Generator
 def generate_text_response(story_name, buttons_list, page=0, user_query="", result_type="story_all"):
     page_size = 10
     start = page * page_size
@@ -91,7 +104,6 @@ def generate_text_response(story_name, buttons_list, page=0, user_query="", resu
     
     res_text += f"🔗 **ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ:** `{len(buttons_list)}`\n\n"
 
-    # हर एक आइटम के बीच खाली लाइन और नया Blockquote (>)
     for idx, item in enumerate(current_items, start=start + 1):
         btn_label = item.get("button_text", "Open Link")
         btn_link = item.get("link", "")
@@ -119,7 +131,6 @@ async def smart_search_handler(user_query):
         story_name = doc.get("story_name", "")
         
         if story_clean_query.lower() == story_name.lower() or story_clean_query.lower() in story_name.lower():
-            
             if searched_num is not None:
                 for btn in doc.get("buttons", []):
                     if is_number_in_button_text(searched_num, btn["button_text"]):
@@ -143,7 +154,7 @@ async def smart_search_handler(user_query):
     if suggestions:
         return None, suggestions, "suggestion"
 
-    # 3. No match found at all
+    # 3. No match found
     return None, [], "none"
 
 
@@ -171,7 +182,7 @@ async def search_handler(client, message):
 
     user_query = message.text.strip()
 
-    # 1. सर्च के दौरान "Please Wait" टेक्स्ट की जगह स्टीकर भेजना
+    # स्टीकर लोड करें
     loading_sticker = None
     if getattr(Config, "SEARCH_STICKER_ID", None):
         try:
@@ -183,22 +194,18 @@ async def search_handler(client, message):
             pass
 
     await asyncio.sleep(1.0)
-
-    # 2. बैकग्राउंड में सर्च प्रोसेस करना
     story_doc, results, result_type = await smart_search_handler(user_query)
 
-    # 3. रिजल्ट देने से ठीक पहले लोडिंग वाले स्टीकर को डिलीट करना
     if loading_sticker:
         try:
             await loading_sticker.delete()
         except Exception:
             pass
 
-    # --- Direct Button / Exact Match ---
+    # --- Direct Button / Exact Match (60.in लिंक या टेक्स्ट मोड) ---
     if result_type in ["direct_button", "story_all"] and results:
         bot_style = await db.get_bot_style()
 
-        # 🅰️ TEXT MODE FORMAT
         if bot_style == "text":
             res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type)
             markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="text")
@@ -212,7 +219,6 @@ async def search_handler(client, message):
             asyncio.create_task(auto_delete_message(sent_msg, 300))
             return
 
-        # 🅱️ BUTTON MODE FORMAT
         else:
             markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="button")
             title_header = f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`"
@@ -223,7 +229,7 @@ async def search_handler(client, message):
                 chat_id=message.chat.id,
                 text=(
                     f"{title_header}\n"
-                    f"🔗 **ʙᴜᴛᴛᴏNs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
+                    f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
                     f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
                 ),
                 reply_markup=markup
@@ -231,11 +237,16 @@ async def search_handler(client, message):
             asyncio.create_task(auto_delete_message(sent_msg, 300))
             return
 
-    # --- AI Suggestions ---
+    # --- Did You Mean Suggestions ---
     if result_type == "suggestion" and results:
         sug_buttons = []
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
+
+        # Did You Mean लिस्ट के नीचे Request Button जोड़ना
+        req_btn = get_request_button()
+        if req_btn:
+            sug_buttons.append(req_btn)
 
         sent_msg = await client.send_message(
             chat_id=message.chat.id,
@@ -249,27 +260,62 @@ async def search_handler(client, message):
         asyncio.create_task(auto_delete_message(sent_msg, 60))
         return
 
-    # --- No Results Found (Google Search Button Added) ---
+    # --- No Results Found ---
     if result_type == "none" or not results:
         encoded_query = quote_plus(user_query)
         google_search_url = f"https://www.google.com/search?q={encoded_query}"
         
-        no_res_markup = InlineKeyboardMarkup([
+        buttons = [
             [InlineKeyboardButton("🔍 sᴇᴀʀᴄʜ ᴏɴ ɢᴏᴏɢʟᴇ", url=google_search_url)]
-        ])
+        ]
+
+        req_btn = get_request_button()
+        if req_btn:
+            buttons.append(req_btn)
 
         sent_msg = await client.send_message(
             chat_id=message.chat.id,
             text=(
                 f"❌ **ɴᴏ ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ ғᴏʀ:** `{user_query}`\n\n"
-                f"Please check your spelling or search on Google using the button below.\n\n"
+                f"Please check your spelling or click below to request standard upload.\n\n"
                 f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
             ),
-            reply_markup=no_res_markup,
+            reply_markup=InlineKeyboardMarkup(buttons),
             disable_web_page_preview=True
         )
         asyncio.create_task(auto_delete_message(sent_msg, 60))
         return
+
+
+# 🔹 Mini App Submission Handler (यूज़र द्वारा फ़ॉर्म सबमिट करने पर)
+@Client.on_message(filters.service & filters.web_app_data)
+async def handle_mini_app_request(client, message):
+    try:
+        raw_data = message.web_app_data.data
+        data = json.loads(raw_data)
+        
+        story_name = data.get("story_name", "N/A")
+        details = data.get("details", "None")
+        user = message.from_user
+
+        await message.reply_text(
+            f"✅ **ʀᴇǫᴜᴇsᴛ sᴜʙᴍɪᴛᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!**\n\n"
+            f"📖 **sᴛᴏʀʏ:** `{story_name}`\n"
+            f"📝 **ᴅᴇᴛᴀɪʟs:** `{details}`\n\n"
+            f"Our admins will process it soon!"
+        )
+
+        if getattr(Config, "LOG_CHANNEL", None):
+            log_text = (
+                f"📥 **ɴᴇᴡ sᴛᴏʀʏ ʀᴇǫᴜᴇsᴛ (ᴍɪɴɪ ᴀᴘᴘ)**\n\n"
+                f"👤 **ᴜsᴇʀ:** {user.mention} (`{user.id}`)\n"
+                f"📖 **sᴛᴏʀʏ:** `{story_name}`\n"
+                f"📝 **ᴅᴇᴛᴀɪʟs:** `{details}`"
+            )
+            await client.send_message(chat_id=int(Config.LOG_CHANNEL), text=log_text)
+
+    except Exception as e:
+        print(f"Error handling web_app_data: {e}")
 
 
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
