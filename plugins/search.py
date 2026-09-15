@@ -43,7 +43,7 @@ def is_number_in_button_text(searched_num, button_text):
 
     return False
 
-# 1. Markup Builder (Button & Text обоих Modes के लिए)
+# 1. Markup Builder (Button & Text दोनों Modes के लिए)
 def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button"):
     page_size = 10
     start = page * page_size
@@ -167,14 +167,17 @@ async def search_handler(client, message):
 
     user_query = message.text.strip()
 
+    # 1. सर्च लोडिंग मैसेज भेजना
     loading_msg = await message.reply_text(f"⏳ <b>ᴘʟᴇᴀsᴇ ᴡᴀɪᴛ</b>, {user_query}...**")
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(1.0)
 
     story_doc, results, result_type = await smart_search_handler(user_query)
 
-    if result_type == "suggestion":
-        await loading_msg.edit_text("🤖 <b>ᴀɪ ᴄʜᴇᴄᴋɪɴɢ</b>")
-        await asyncio.sleep(1.5)
+    # 2. लोडिंग वाले मैसेज को डिलीट करना
+    try:
+        await loading_msg.delete()
+    except Exception:
+        pass
 
     # --- Direct Button / Exact Match (Check Owner Style) ---
     if result_type in ["direct_button", "story_all"] and results:
@@ -185,8 +188,13 @@ async def search_handler(client, message):
             res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type)
             markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="text")
             
-            await loading_msg.edit_text(res_text, reply_markup=markup, disable_web_page_preview=True)
-            asyncio.create_task(auto_delete_message(loading_msg, 300))
+            sent_msg = await client.send_message(
+                chat_id=message.chat.id,
+                text=res_text,
+                reply_markup=markup,
+                disable_web_page_preview=True
+            )
+            asyncio.create_task(auto_delete_message(sent_msg, 300))
             return
 
         # 🅱️ BUTTON MODE FORMAT
@@ -196,13 +204,16 @@ async def search_handler(client, message):
             if result_type == "direct_button":
                 title_header += f"\n🎯 **ᴍᴀᴛᴄʜᴇᴅ ᴇᴘɪsᴏᴅᴇ ʀᴇsᴜʟᴛ ғᴏʀ:** `{user_query}`"
 
-            await loading_msg.edit_text(
-                f"{title_header}\n"
-                f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
-                f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._",
+            sent_msg = await client.send_message(
+                chat_id=message.chat.id,
+                text=(
+                    f"{title_header}\n"
+                    f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
+                    f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
+                ),
                 reply_markup=markup
             )
-            asyncio.create_task(auto_delete_message(loading_msg, 300))
+            asyncio.create_task(auto_delete_message(sent_msg, 300))
             return
 
     # --- AI Suggestions ---
@@ -211,19 +222,17 @@ async def search_handler(client, message):
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
-        await loading_msg.edit_text(
-            f"❌ **ɴᴏ ᴅɪʀᴇᴄᴛ ᴍᴀᴛᴄʜ ғᴏᴜɴᴅ ғᴏʀ `{user_query}`.**\n\n"
-            f"**🤖 ᴅɪᴅ ʏᴏᴜ ᴍᴇᴀɴ?**\n\n"
-            f"⏱️ _ᴛʜɪs sᴜɢɢᴇsᴛɪᴏɴ ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._",
+        sent_msg = await client.send_message(
+            chat_id=message.chat.id,
+            text=(
+                f"❌ **ɴᴏ ᴅɪʀᴇᴄᴛ ᴍᴀᴛᴄʜ ғᴏᴜɴᴅ ғᴏʀ `{user_query}`.**\n\n"
+                f"**🤖 ᴅɪᴅ ʏᴏᴜ ᴍᴇᴀɴ?**\n\n"
+                f"⏱️ _ᴛʜɪs sᴜɢɢᴇsᴛɪᴏɴ ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
+            ),
             reply_markup=InlineKeyboardMarkup(sug_buttons)
         )
-        asyncio.create_task(auto_delete_message(loading_msg, 60))
+        asyncio.create_task(auto_delete_message(sent_msg, 60))
         return
-
-    try:
-        await loading_msg.delete()
-    except Exception:
-        pass
 
 
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
