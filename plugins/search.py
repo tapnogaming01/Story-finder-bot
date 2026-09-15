@@ -285,10 +285,10 @@ async def search_handler(client, message):
         return
 
 
-# 🔹 FIX: Mini App Submission Handler (filters.service के ज़रिए web_app_data पकड़ना)
+# 🔹 Fallback Handler: अगर Telegram से direct web_app_data आए (Private Chat में)
 @Client.on_message(filters.service)
 async def handle_mini_app_request(client, message):
-    if not message.web_app_data:
+    if not hasattr(message, 'web_app_data') or not message.web_app_data:
         return
 
     try:
