@@ -77,7 +77,7 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button")
 
     return InlineKeyboardMarkup(keyboard)
 
-# 2. Text Format Response Generator (With Blockquote Block `>`)
+# 2. Text Format Response Generator (Har Item ka Alag Blockquote `>`)
 def generate_text_response(story_name, buttons_list, page=0, user_query="", result_type="story_all"):
     page_size = 10
     start = page * page_size
@@ -90,13 +90,13 @@ def generate_text_response(story_name, buttons_list, page=0, user_query="", resu
     
     res_text += f"🔗 **ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ:** `{len(buttons_list)}`\n\n"
 
-    # Blockquote (>) format for Links List
+    # हर एक आइटम के बीच खाली लाइन और नया Blockquote (>) ताकि सब अलग-अलग दिखें
     for idx, item in enumerate(current_items, start=start + 1):
         btn_label = item.get("button_text", "Open Link")
         btn_link = item.get("link", "")
-        res_text += f"> {idx}. 📁 <a href='{btn_link}'>{btn_label}</a>\n"
+        res_text += f"> {idx}. 📁 <a href='{btn_link}'>{btn_label}</a>\n\n"
 
-    res_text += "\n⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
+    res_text += "⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
     return res_text
 
 async def smart_search_handler(user_query):
