@@ -21,4 +21,4 @@ class Config:
     SEARCH_STICKER_ID = "CAACAgUAAxkBAAEBUAdqqTwpBKtnJUffWa0XeQABA5CchHsAAl4MAAKxjqhVi042_bzIzXEeBA" 
     
     
-    REQUEST_MINI_APP_URL = "https://story-finder-bot-fjm9.onrender.com"
+    REQUEST_MINI_APP_URL = "https://story-finder-bot-fjm9.onrender.com/request"
