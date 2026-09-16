@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Story Hub - Glass Mini App</title>
+    <title>Request Story - Ultra Glass HD</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -22,12 +22,12 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 16px;
+            padding: 20px;
             position: relative;
             overflow-x: hidden;
         }
 
-        /* Ambient Glow Spheres */
+        /* Ambient Background Glows */
         body::before, body::after {
             content: '';
             position: absolute;
@@ -39,14 +39,14 @@
             width: 250px;
             height: 250px;
             background: rgba(14, 165, 233, 0.25);
-            top: 5%;
+            top: 10%;
             left: 5%;
         }
         body::after {
             width: 220px;
             height: 220px;
             background: rgba(168, 85, 247, 0.2);
-            bottom: 5%;
+            bottom: 10%;
             right: 5%;
         }
 
@@ -58,8 +58,8 @@
             backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
             width: 100%;
-            max-width: 420px;
-            padding: 24px 20px;
+            max-width: 400px;
+            padding: 26px 22px;
             border-radius: 24px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), 
                         inset 0 1px 1px rgba(255, 255, 255, 0.2);
@@ -72,29 +72,27 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
-        /* 📌 Glass Nav Tabs (3 Tabs) */
+        /* Glass Nav Tabs */
         .tabs {
             display: flex;
             background: rgba(0, 0, 0, 0.35);
-            padding: 4px;
+            padding: 5px;
             border-radius: 14px;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
             border: 1px solid rgba(255, 255, 255, 0.08);
-            gap: 2px;
         }
 
         .tab-btn {
             flex: 1;
-            padding: 10px 4px;
+            padding: 12px 10px;
             border: none;
             background: transparent;
             color: #94a3b8;
-            font-size: 11.5px;
+            font-size: 13px;
             font-weight: 600;
             border-radius: 10px;
             cursor: pointer;
             transition: all 0.3s ease;
-            white-space: nowrap;
         }
 
         .tab-btn.active {
@@ -106,46 +104,46 @@
 
         .header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 22px;
         }
 
         .header-icon {
-            font-size: 40px;
-            margin-bottom: 4px;
+            font-size: 42px;
+            margin-bottom: 6px;
             display: inline-block;
             filter: drop-shadow(0 4px 10px rgba(0,0,0,0.4));
         }
 
         .header h2 {
-            font-size: 20px;
+            font-size: 22px;
             font-weight: 700;
             color: #ffffff;
             text-shadow: 0 2px 8px rgba(0,0,0,0.4);
         }
 
         .header p {
-            font-size: 12.5px;
+            font-size: 13px;
             color: rgba(255, 255, 255, 0.75);
             margin-top: 4px;
         }
 
         .form-group {
-            margin-bottom: 16px;
+            margin-bottom: 18px;
         }
 
         label {
             display: block;
-            font-size: 13px;
+            font-size: 13.5px;
             font-weight: 600;
             margin-bottom: 8px;
             color: #ffffff;
             text-shadow: 0 1px 3px rgba(0,0,0,0.4);
         }
 
-        /* 👁️ Glass Inputs */
+        /* 👁️ High Contrast Glass Inputs */
         input, textarea {
             width: 100%;
-            padding: 13px 16px;
+            padding: 14px 16px;
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.22);
             background: rgba(0, 0, 0, 0.35);
@@ -157,6 +155,7 @@
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
+        /* साफ़ और स्पष्ट प्लेसहोल्डर */
         input::placeholder, textarea::placeholder {
             color: rgba(255, 255, 255, 0.5);
             font-weight: 400;
@@ -170,35 +169,16 @@
 
         textarea {
             resize: none;
-            height: 85px;
+            height: 90px;
         }
 
-        /* 📌 Search Bar Box */
-        .search-box {
-            margin-bottom: 16px;
-            position: relative;
-        }
-
-        .search-box input {
-            padding-left: 40px;
-        }
-
-        .search-icon {
-            position: absolute;
-            left: 14px;
-            top: 50%;
-            transform: translateY(-50%);
-            font-size: 16px;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        /* Buttons */
+        /* Glowing Glass Action Buttons */
         .submit-btn, .close-btn {
             width: 100%;
-            padding: 14px;
+            padding: 15px;
             border-radius: 14px;
             border: 1px solid rgba(255, 255, 255, 0.2);
-            font-size: 15px;
+            font-size: 15.5px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.2s ease;
@@ -227,71 +207,39 @@
             transform: scale(0.98);
         }
 
-        /* 📌 Lists Style (Search List & Requests List) */
-        .content-list {
+        /* Glass Request List Items */
+        .req-list {
             max-height: 260px;
             overflow-y: auto;
             display: flex;
             flex-direction: column;
-            gap: 10px;
-            padding-right: 2px;
+            gap: 12px;
         }
 
-        /* Custom Scrollbar */
-        .content-list::-webkit-scrollbar {
-            width: 4px;
-        }
-        .content-list::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 4px;
-        }
-
-        .list-item {
+        .req-item {
             background: rgba(255, 255, 255, 0.06);
             backdrop-filter: blur(10px);
-            padding: 12px 14px;
+            padding: 14px;
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.12);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
         }
 
-        .item-info {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .item-title {
-            font-size: 14px;
+        .req-title {
+            font-size: 15px;
             font-weight: 600;
             color: #ffffff;
         }
 
-        .item-sub {
-            font-size: 11.5px;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .badge-found {
-            padding: 4px 10px;
-            border-radius: 8px;
-            background: rgba(34, 197, 94, 0.2);
-            color: #4ade80;
-            border: 1px solid rgba(34, 197, 94, 0.4);
-            font-size: 11px;
-            font-weight: 600;
-        }
-
         .req-status {
-            font-size: 11px;
+            font-size: 12px;
+            margin-top: 6px;
+            display: inline-block;
             padding: 4px 10px;
             border-radius: 8px;
             background: rgba(56, 189, 248, 0.15);
             color: #38bdf8;
             border: 1px solid rgba(56, 189, 248, 0.3);
-            font-weight: 600;
         }
 
         .hidden {
@@ -317,17 +265,18 @@
 <body>
 
     <div class="card" id="mainCard">
+        <!-- Tab Navigation -->
         <div class="tabs">
-            <button class="tab-btn active" id="newReqTab">📝 Request</button>
-            <button class="tab-btn" id="searchTab">🔍 Search</button>
-            <button class="tab-btn" id="myReqTab">📊 History</button>
+            <button class="tab-btn active" id="newReqTab">📝 New Request</button>
+            <button class="tab-btn" id="myReqTab">📊 My Requests</button>
         </div>
 
+        <!-- 1. Form Section -->
         <div id="formSection">
             <div class="header">
                 <span class="header-icon">📖</span>
                 <h2>Request a Story</h2>
-                <p>Fill details below to request new content</p>
+                <p>Fill details below to request your content</p>
             </div>
 
             <form id="requestForm">
@@ -347,35 +296,20 @@
             </form>
         </div>
 
-        <div id="searchSection" class="hidden">
-            <div class="header">
-                <span class="header-icon">🔍</span>
-                <h2>Search Available Stories</h2>
-                <p>Find stories that are already uploaded</p>
-            </div>
-
-            <div class="search-box">
-                <span class="search-icon">🔍</span>
-                <input type="text" id="searchInput" placeholder="Type story name to search..." onkeyup="filterStories()">
-            </div>
-
-            <div class="content-list" id="searchResultsContainer">
-                <p style="text-align: center; font-size: 13px; color: rgba(255,255,255,0.7);">Loading stories...</p>
-            </div>
-        </div>
-
+        <!-- 2. My Requests Section -->
         <div id="myReqSection" class="hidden">
             <div class="header">
                 <span class="header-icon">📋</span>
                 <h2>Your Requests</h2>
                 <p>Live status of your requested content</p>
             </div>
-            <div class="content-list" id="requestsContainer">
+            <div class="req-list" id="requestsContainer">
                 <p style="text-align: center; font-size: 13px; color: rgba(255,255,255,0.7);">Loading requests...</p>
             </div>
         </div>
     </div>
 
+    <!-- 3. Success Screen -->
     <div class="card hidden" id="successCard">
         <div class="header" style="text-align: center;">
             <span style="font-size: 50px; display: inline-block; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3));">🎉</span>
@@ -398,87 +332,30 @@
         const user = tg.initDataUnsafe.user || {};
 
         const newReqTab = document.getElementById('newReqTab');
-        const searchTab = document.getElementById('searchTab');
         const myReqTab = document.getElementById('myReqTab');
-
         const formSection = document.getElementById('formSection');
-        const searchSection = document.getElementById('searchSection');
         const myReqSection = document.getElementById('myReqSection');
-        
         const requestForm = document.getElementById('requestForm');
         const mainCard = document.getElementById('mainCard');
         const successCard = document.getElementById('successCard');
 
-        let availableStories = []; // सर्च के लिए एरे
-
         // Tab Switching Logic
         newReqTab.addEventListener('click', () => {
-            switchTab(newReqTab, formSection);
-        });
-
-        searchTab.addEventListener('click', () => {
-            switchTab(searchTab, searchSection);
-            fetchAvailableStories();
+            newReqTab.classList.add('active');
+            myReqTab.classList.remove('active');
+            formSection.classList.remove('hidden');
+            myReqSection.classList.add('hidden');
         });
 
         myReqTab.addEventListener('click', () => {
-            switchTab(myReqTab, myReqSection);
+            myReqTab.classList.add('active');
+            newReqTab.classList.remove('active');
+            formSection.classList.add('hidden');
+            myReqSection.classList.remove('hidden');
             fetchUserRequests();
         });
 
-        function switchTab(activeBtn, activeSection) {
-            [newReqTab, searchTab, myReqTab].forEach(btn => btn.classList.remove('active'));
-            [formSection, searchSection, myReqSection].forEach(sec => sec.classList.add('hidden'));
-
-            activeBtn.classList.add('active');
-            activeSection.classList.remove('hidden');
-        }
-
-        // 📌 Fetch All Available Stories from Backend API
-        async function fetchAvailableStories() {
-            const container = document.getElementById('searchResultsContainer');
-            try {
-                const res = await fetch('/api/get_all_stories');
-                const data = await res.json();
-
-                if (data.status === "success" && data.stories.length > 0) {
-                    availableStories = data.stories;
-                    renderStories(availableStories);
-                } else {
-                    container.innerHTML = `<p style="text-align: center; color: rgba(255,255,255,0.6); font-size: 13px;">No stories available yet!</p>`;
-                }
-            } catch (e) {
-                container.innerHTML = `<p style="text-align: center; color: #ff4d4d; font-size: 13px;">Error loading stories!</p>`;
-            }
-        }
-
-        // Render Search Results
-        function renderStories(stories) {
-            const container = document.getElementById('searchResultsContainer');
-            if(stories.length === 0) {
-                container.innerHTML = `<p style="text-align: center; color: rgba(255,255,255,0.6); font-size: 13px;">No matching story found!</p>`;
-                return;
-            }
-
-            container.innerHTML = stories.map(story => `
-                <div class="list-item">
-                    <div class="item-info">
-                        <div class="item-title">📖 ${story.title}</div>
-                        <div class="item-sub">${story.episodes || 'Available'}</div>
-                    </div>
-                    <span class="badge-found">Available</span>
-                </div>
-            `).join('');
-        }
-
-        // Live Search Filter Function
-        function filterStories() {
-            const query = document.getElementById('searchInput').value.toLowerCase().trim();
-            const filtered = availableStories.filter(s => s.title.toLowerCase().includes(query));
-            renderStories(filtered);
-        }
-
-        // Submit Form Logic
+        // Submit Form
         requestForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
@@ -517,7 +394,7 @@
             }
         });
 
-        // Fetch My Requests
+        // Fetch Requests History
         async function fetchUserRequests() {
             const container = document.getElementById('requestsContainer');
             if (!user.id) {
@@ -531,10 +408,8 @@
 
                 if (data.status === "success" && data.requests.length > 0) {
                     container.innerHTML = data.requests.map(req => `
-                        <div class="list-item">
-                            <div class="item-info">
-                                <div class="item-title">📖 ${req.story_name}</div>
-                            </div>
+                        <div class="req-item">
+                            <div class="req-title">📖 ${req.story_name}</div>
                             <div class="req-status">Status: <b>${req.status}</b></div>
                         </div>
                     `).join('');
