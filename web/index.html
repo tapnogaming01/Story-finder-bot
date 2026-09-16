@@ -47,7 +47,7 @@
         }
 
         .header-icon {
-            font-size: 42px;
+            font-size: 48px;
             margin-bottom: 8px;
             display: inline-block;
         }
@@ -99,13 +99,11 @@
             height: 90px;
         }
 
-        .submit-btn {
+        .submit-btn, .close-btn {
             width: 100%;
             padding: 14px;
             border-radius: 12px;
             border: none;
-            background: var(--tg-theme-button-color, #0284c7);
-            color: var(--tg-theme-button-text-color, #ffffff);
             font-size: 15px;
             font-weight: 600;
             cursor: pointer;
@@ -114,16 +112,50 @@
             align-items: center;
             justify-content: center;
             gap: 8px;
+        }
+
+        .submit-btn {
+            background: var(--tg-theme-button-color, #0284c7);
+            color: var(--tg-theme-button-text-color, #ffffff);
             box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
         }
 
-        .submit-btn:active {
+        .close-btn {
+            background: #ef4444;
+            color: #ffffff;
+            box-shadow: 0 4px 14px rgba(239, 68, 68, 0.3);
+            margin-top: 15px;
+        }
+
+        .submit-btn:active, .close-btn:active {
             transform: scale(0.98);
         }
 
         .submit-btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
+        }
+
+        /* Success Screen CSS */
+        .hidden {
+            display: none !important;
+        }
+
+        .success-box {
+            text-align: center;
+            padding: 10px 0;
+        }
+
+        .success-icon {
+            font-size: 55px;
+            color: #22c55e;
+            margin-bottom: 12px;
+            animation: bounce 0.6s ease;
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); }
         }
 
         /* Spinner Loader */
@@ -146,7 +178,7 @@
 </head>
 <body>
 
-    <div class="card">
+    <div class="card" id="formCard">
         <div class="header">
             <span class="header-icon">📖</span>
             <h2>Request a Story</h2>
@@ -170,12 +202,31 @@
         </form>
     </div>
 
+    <div class="card hidden" id="successCard">
+        <div class="header success-box">
+            <span class="success-icon">🎉</span>
+            <h2>Request Submitted!</h2>
+            <p style="margin-top: 10px; font-size: 14px; line-height: 1.5; color: #cbd5e1;">
+                आपकी स्टोरी की रिक्वेस्ट सफलतापूर्वक भेज दी गई है। हमारे एडमिन्स इसे जल्द ही अपलोड कर देंगे।
+            </p>
+        </div>
+
+        <button type="button" id="closeBtn" class="close-btn">
+            ✖️ Close Window
+        </button>
+    </div>
+
     <script>
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
 
-        document.getElementById('requestForm').addEventListener('submit', async function(e) {
+        const requestForm = document.getElementById('requestForm');
+        const formCard = document.getElementById('formCard');
+        const successCard = document.getElementById('successCard');
+        const closeBtn = document.getElementById('closeBtn');
+
+        requestForm.addEventListener('submit', async function(e) {
             e.preventDefault();
 
             const submitBtn = document.getElementById('submitBtn');
@@ -203,9 +254,12 @@
                 });
 
                 if (response.ok) {
-                    tg.showAlert("✅ Request submitted successfully!\nOur team will upload it soon.", () => {
-                        tg.close();
-                    });
+                    // फॉर्म स्क्रीन छुपाकर न्यू सक्सेस स्क्रीन दिखाएं
+                    formCard.classList.add('hidden');
+                    successCard.classList.remove('hidden');
+                    if (tg.HapticFeedback) {
+                        tg.HapticFeedback.notificationOccurred('success');
+                    }
                 } else {
                     tg.showAlert("❌ Server error! Please try again later.");
                     resetBtn();
@@ -214,6 +268,11 @@
                 tg.showAlert("⚠️ Network error! Check connection.");
                 resetBtn();
             }
+        });
+
+        // Close Button Event: विंडो बंद करेगा
+        closeBtn.addEventListener('click', function() {
+            tg.close();
         });
 
         function resetBtn() {
