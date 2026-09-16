@@ -9,6 +9,7 @@ class Database:
         self.posts = self.db.posts
         self.users = self.db.users
         self.settings = self.db.settings  # ⚙️ Admin Settings for Text vs Button layout
+        self.requests = self.db.requests  # 📝 Feature 1: Requests tracking collection
 
     # --- Upgraded Posts Logic (Story | Button Text | Link Support) ---
     async def save_post(self, caption_text):
@@ -147,4 +148,42 @@ class Database:
     async def total_users_count(self):
         return await self.users.count_documents({})
 
+    # --- Feature 1: User Request Tracking Logic ---
+    async def add_user_request(self, user_id, first_name, story_name, details="N/A"):
+        """Mini App से आने वाली यूज़र की रिक्वेस्ट को 'Pending' स्टेटस के साथ सेव करेगा"""
+        req_doc = {
+            "user_id": int(user_id),
+            "first_name": first_name,
+            "story_name": story_name,
+            "details": details,
+            "status": "Pending",  # डिफ़ॉल्ट स्टेटस Pending रहेगा
+            "created_at": datetime.now(timezone.utc)
+        }
+        await self.requests.insert_one(req_doc)
+        return True
+
+    async def get_user_requests(self, user_id):
+        """यूज़र की सभी पुरानी स्टोरी रिक्वेस्ट और उनका स्टेटस निकालेगा"""
+        cursor = self.requests.find(
+            {"user_id": int(user_id)},
+            {"_id": 0}  # JSON serializable बनाने के लिए _id हटा दें
+        ).sort("created_at", -1)
+        
+        results = await cursor.to_list(length=50)
+        # Datetime ऑब्जेक्ट्स को String में फॉर्मेट करें
+        for req in results:
+            if "created_at" in req and isinstance(req["created_at"], datetime):
+                req["created_at"] = req["created_at"].strftime("%Y-%m-%d %H:%M:%S")
+        return results
+
+
+
+# server.py से डायरेक्ट इम्पोर्ट करने के लिए हेल्पर्स:
+async def add_user_request(user_id, first_name, story_name, details="N/A"):
+    return await db.add_user_request(user_id, first_name, story_name, details)
+
+async def get_user_requests(user_id):
+    return await db.get_user_requests(user_id)
+
 db = Database()
+
