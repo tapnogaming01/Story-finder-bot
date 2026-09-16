@@ -87,12 +87,20 @@ async def start_handler(client, message):
         "✨ *ᴊᴜsᴛ sᴇɴᴅ ᴍᴇ ᴛʜᴇ ɴᴀᴍᴇ ᴏғ ᴀɴʏ sᴛᴏʀʏ ᴏʀ ᴇᴘɪsᴏᴅᴇ ᴛᴏ sᴇᴀʀᴄʜ!*"
     )
     
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={Config.OWNER_ID}"),
-            InlineKeyboardButton("ℹ️ About", callback_data="about_btn")
-        ]
+    # Mini App URL Config से उठाना
+    mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
+
+    # 📌 यहाँ पर Mini App Button जोड़ा गया है
+    button_rows = []
+    if mini_app_url:
+        button_rows.append([InlineKeyboardButton("📝 Request Story (Mini App)", web_app=WebAppInfo(url=mini_app_url))])
+    
+    button_rows.append([
+        InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={Config.OWNER_ID}"),
+        InlineKeyboardButton("ℹ️ About", callback_data="about_btn")
     ])
+    
+    buttons = InlineKeyboardMarkup(button_rows)
     
     await message.reply_text(welcome_text, reply_markup=buttons)
 
@@ -122,11 +130,17 @@ async def back_home_callback(client, query):
         "✨ *ᴊᴜsᴛ sᴇɴᴅ ᴍᴇ ᴛʜᴇ ɴᴀᴍᴇ ᴏғ ᴀɴʏ sᴛᴏʀʏ ᴏʀ ᴇᴘɪsᴏᴅᴇ ᴛᴏ sᴇᴀʀᴄʜ!*"
     )
     
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={Config.OWNER_ID}"),
-            InlineKeyboardButton("ℹ️ About", callback_data="about_btn")
-        ]
+    mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
+
+    button_rows = []
+    if mini_app_url:
+        button_rows.append([InlineKeyboardButton("📝 Request Story (Mini App)", web_app=WebAppInfo(url=mini_app_url))])
+    
+    button_rows.append([
+        InlineKeyboardButton("👨‍💻 Developer", url=f"tg://user?id={Config.OWNER_ID}"),
+        InlineKeyboardButton("ℹ️ About", callback_data="about_btn")
     ])
+    
+    buttons = InlineKeyboardMarkup(button_rows)
     
     await query.message.edit_text(welcome_text, reply_markup=buttons)
