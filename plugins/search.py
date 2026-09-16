@@ -45,17 +45,17 @@ def is_number_in_button_text(searched_num, button_text):
 
     return False
 
-# 🔹 Helper Function: Mini App Button (PM और Group दोनों के लिए फ़िक्स)
+# 🔹 Helper Function: Mini App Button (PM और Group दोनों के लिए सही बटन बनाएगा)
 def get_request_button(chat_type="private", bot_username=""):
     mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
     if not mini_app_url:
         return None
 
-    # अगर चैट Private (PM) है, तो डायरेक्ट WebApp बटन
+    # अगर चैट Private (PM) है, तो WebApp बटन
     if chat_type == "private":
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", web_app=WebAppInfo(url=mini_app_url))]
     
-    # अगर चैट Group/Supergroup है, तो Deep-Link URL बटन (जो PM में Mini App खोलेगा)
+    # अगर ग्रुप है, तो Direct Start URL (/start request)
     else:
         pm_link = f"https://t.me/{bot_username}?start=request"
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", url=pm_link)]
@@ -92,7 +92,7 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
     if total_pages > 1 or mode == "text":
         keyboard.append(nav_buttons)
 
-    # 📌 Request Story बटन जोड़ें (Chat Type के अनुसार)
+    # 📌 Request Story बटन जोड़ें
     req_btn = get_request_button(chat_type=chat_type, bot_username=bot_username)
     if req_btn:
         keyboard.append(req_btn)
@@ -295,24 +295,38 @@ async def search_handler(client, message):
         return
 
 
-# 🔹 Start Command Handler में `/start request` ट्रिगर करना
-@Client.on_message(filters.command("start") & filters.private)
-async def start_handler(client, message):
-    text = message.text
-    # अगर ग्रुप के बटन से यूज़र रिडायरेक्ट होकर आया है:
-    if len(text.split()) > 1 and text.split()[1] == "request":
-        mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
-        if mini_app_url:
-            btn = InlineKeyboardMarkup([
-                [InlineKeyboardButton("📝 ᴏᴘᴇɴ ʀᴇǫᴜᴇsᴛ ғᴏʀᴍ", web_app=WebAppInfo(url=mini_app_url))]
-            ])
-            await message.reply_text(
-                "📝 **sᴛᴏʀʏ ʀᴇǫᴜᴇsᴛ**\n\nClick the button below to open the request form:",
-                reply_markup=btn
-            )
-            return
+# 🔹 Mini App Data Handler (Telegram sendData से आए रिक्वेस्ट को प्रोसेस करने के लिए)
+@Client.on_message(filters.service)
+async def handle_mini_app_request(client, message):
+    if not hasattr(message, 'web_app_data') or not message.web_app_data:
+        return
 
-    await message.reply_text("Hello! I am your Story Search Bot.")
+    try:
+        raw_data = message.web_app_data.data
+        data = json.loads(raw_data)
+        
+        story_name = data.get("story_name", "N/A")
+        details = data.get("details", "None")
+        user = message.from_user
+
+        await message.reply_text(
+            f"✅ **ʀᴇǫᴜᴇsᴛ sᴜʙᴍɪᴛᴛᴇᴅ sᴜᴄᴄᴇssғᴜʟʟʏ!**\n\n"
+            f"📖 **sᴛᴏʀʏ:** `{story_name}`\n"
+            f"📝 **ᴅᴇᴛᴀɪʟs:** `{details}`\n\n"
+            f"Our admins will process it soon!"
+        )
+
+        if getattr(Config, "LOG_CHANNEL", None):
+            log_text = (
+                f"📥 **ɴᴇᴡ sᴛᴏʀʏ ʀᴇǫᴜᴇsᴛ (ᴍɪɴɪ ᴀᴘᴘ)**\n\n"
+                f"👤 **ᴜsᴇʀ:** {user.mention} (`{user.id}`)\n"
+                f"📖 **sᴛᴏʀʏ:** `{story_name}`\n"
+                f"📝 **ᴅᴇᴛᴀɪʟs:** `{details}`"
+            )
+            await client.send_message(chat_id=int(Config.LOG_CHANNEL), text=log_text)
+
+    except Exception as e:
+        print(f"Error handling web_app_data: {e}")
 
 
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
