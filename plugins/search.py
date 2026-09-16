@@ -60,8 +60,8 @@ def get_request_button(chat_type="private", bot_username=""):
         pm_link = f"https://t.me/{bot_username}?start=request"
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", url=pm_link)]
 
-# 1. Markup Builder
-def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username=""):
+# 1. Markup Builder (Subscribe Button के साथ)
+def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username="", user_name="", user_id=None):
     page_size = 10
     start = page * page_size
     end = start + page_size
@@ -69,13 +69,18 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
 
     keyboard = []
 
-    # 🔘 BUTTON MODE
+    # 1. Requested By Header (अगर उपलब्ध हो)
+    if user_name and user_id:
+        keyboard.append([InlineKeyboardButton(f"👤 Requested By: {user_name}", url=f"tg://user?id={user_id}")])
+
+    # 2. 🔘 BUTTON MODE
     if mode == "button":
         for item in current_page_items:
             btn_text = item.get("button_text", "Open Link")
             btn_url = item.get("link", "")
             keyboard.append([InlineKeyboardButton(text=btn_text, url=btn_url)])
 
+    # 3. Pagination Nav
     total_pages = (len(buttons_list) + page_size - 1) // page_size
     nav_buttons = []
 
@@ -92,7 +97,11 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
     if total_pages > 1 or mode == "text":
         keyboard.append(nav_buttons)
 
-    # 📌 Request Story बटन जोड़ें
+    # 4. 🔔 Subscribe Updates Button
+    if story_id:
+        keyboard.append([InlineKeyboardButton("🔔 sᴜʙsᴄʀɪʙᴇ ᴜᴘᴅᴀᴛᴇs", callback_data=f"sub_story#{story_id}")])
+
+    # 5. 📌 Request Story बटन जोड़ें
     req_btn = get_request_button(chat_type=chat_type, bot_username=bot_username)
     if req_btn:
         keyboard.append(req_btn)
@@ -168,10 +177,12 @@ async def smart_search_handler(user_query):
 
 @Client.on_message(filters.text & (filters.private | filters.group) & ~filters.command(["start", "help", "about", "index", "index_last", "settings", "mode"]))
 async def search_handler(client, message):
-    user_id = message.from_user.id if message.from_user else None
+    user = message.from_user
+    user_id = user.id if user else None
     if not user_id:
         return
 
+    first_name = user.first_name if user else "User"
     chat_type = "private" if message.chat.type.name == "PRIVATE" else "group"
 
     if chat_type == "private":
@@ -217,7 +228,11 @@ async def search_handler(client, message):
 
         if bot_style == "text":
             res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type)
-            markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="text", chat_type=chat_type, bot_username=client.me.username)
+            markup = build_story_buttons_markup(
+                buttons_list=results, page=0, story_id=story_doc["story_name"], 
+                mode="text", chat_type=chat_type, bot_username=client.me.username,
+                user_name=first_name, user_id=user_id
+            )
             
             sent_msg = await client.send_message(
                 chat_id=message.chat.id,
@@ -229,7 +244,11 @@ async def search_handler(client, message):
             return
 
         else:
-            markup = build_story_buttons_markup(buttons_list=results, page=0, story_id=story_doc["story_name"], mode="button", chat_type=chat_type, bot_username=client.me.username)
+            markup = build_story_buttons_markup(
+                buttons_list=results, page=0, story_id=story_doc["story_name"], 
+                mode="button", chat_type=chat_type, bot_username=client.me.username,
+                user_name=first_name, user_id=user_id
+            )
             title_header = f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`"
             if result_type == "direct_button":
                 title_header += f"\n🎯 **ᴍᴀᴛᴄʜᴇᴅ ᴇᴘɪsᴏᴅᴇ ʀᴇsᴜʟᴛ ғᴏʀ:** `{user_query}`"
@@ -248,7 +267,9 @@ async def search_handler(client, message):
 
     # --- Did You Mean Suggestions ---
     if result_type == "suggestion" and results:
-        sug_buttons = []
+        sug_buttons = [
+            [InlineKeyboardButton(f"👤 Requested By: {first_name}", url=f"tg://user?id={user_id}")]
+        ]
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
@@ -274,6 +295,7 @@ async def search_handler(client, message):
         google_search_url = f"https://www.google.com/search?q={encoded_query}"
         
         buttons = [
+            [InlineKeyboardButton(f"👤 Requested By: {first_name}", url=f"tg://user?id={user_id}")],
             [InlineKeyboardButton("🔍 sᴇᴀʀᴄʜ ᴏɴ ɢᴏᴏɢʟᴇ", url=google_search_url)]
         ]
 
@@ -329,9 +351,26 @@ async def handle_mini_app_request(client, message):
         print(f"Error handling web_app_data: {e}")
 
 
+# 🔹 Feature: Story Subscribe Callback
+@Client.on_callback_query(filters.regex(r"^sub_story#"))
+async def subscribe_story_callback(client, query):
+    user_id = query.from_user.id
+    story_name = query.data.split("#")[1]
+
+    # Database में यूज़र को इस स्टोरी के लिए सब्सक्राइब करें
+    await db.db.subscribers.update_one(
+        {"story_name": story_name},
+        {"$addToSet": {"user_ids": user_id}},
+        upsert=True
+    )
+    await query.answer(f"🔔 You subscribed to updates for '{story_name}'!", show_alert=True)
+
+
 @Client.on_callback_query(filters.regex(r"^dym_story#"))
 async def dym_story_callback(client, query):
-    user_id = query.from_user.id
+    user = query.from_user
+    user_id = user.id
+    first_name = user.first_name
     chat_type = "private" if query.message.chat.type.name == "PRIVATE" else "group"
 
     if not await check_verification(client, user_id):
@@ -351,7 +390,11 @@ async def dym_story_callback(client, query):
 
         if bot_style == "text":
             res_text = generate_text_response(story_name, story_doc["buttons"], page=0)
-            markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name, mode="text", chat_type=chat_type, bot_username=client.me.username)
+            markup = build_story_buttons_markup(
+                buttons_list=story_doc["buttons"], page=0, story_id=story_name, 
+                mode="text", chat_type=chat_type, bot_username=client.me.username,
+                user_name=first_name, user_id=user_id
+            )
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
                 text=res_text,
@@ -359,7 +402,11 @@ async def dym_story_callback(client, query):
                 disable_web_page_preview=True
             )
         else:
-            markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=0, story_id=story_name, mode="button", chat_type=chat_type, bot_username=client.me.username)
+            markup = build_story_buttons_markup(
+                buttons_list=story_doc["buttons"], page=0, story_id=story_name, 
+                mode="button", chat_type=chat_type, bot_username=client.me.username,
+                user_name=first_name, user_id=user_id
+            )
             total_btns = len(story_doc["buttons"])
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
@@ -379,9 +426,12 @@ async def dym_story_callback(client, query):
 
 @Client.on_callback_query(filters.regex(r"^story_pg#"))
 async def story_pagination_callback(client, query):
+    user = query.from_user
+    user_id = user.id
+    first_name = user.first_name
     chat_type = "private" if query.message.chat.type.name == "PRIVATE" else "group"
     
-    if not await check_verification(client, query.from_user.id):
+    if not await check_verification(client, user_id):
         await query.answer("ᴘʟᴇᴀsᴇ ᴊᴏɪɴ ᴏᴜʀ ᴜᴘᴅᴀᴛᴇ ᴄʜᴀɴɴᴇʟ ғɪʀsᴛ!", show_alert=True)
         return
 
@@ -397,10 +447,18 @@ async def story_pagination_callback(client, query):
 
     if bot_style == "text":
         res_text = generate_text_response(story_name, story_doc["buttons"], page=page)
-        markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name, mode="text", chat_type=chat_type, bot_username=client.me.username)
+        markup = build_story_buttons_markup(
+            buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
+            mode="text", chat_type=chat_type, bot_username=client.me.username,
+            user_name=first_name, user_id=user_id
+        )
         await query.message.edit_text(res_text, reply_markup=markup, disable_web_page_preview=True)
     else:
-        markup = build_story_buttons_markup(buttons_list=story_doc["buttons"], page=page, story_id=story_name, mode="button", chat_type=chat_type, bot_username=client.me.username)
+        markup = build_story_buttons_markup(
+            buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
+            mode="button", chat_type=chat_type, bot_username=client.me.username,
+            user_name=first_name, user_id=user_id
+        )
         total_btns = len(story_doc["buttons"])
         await query.message.edit_text(
             f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`\n"
