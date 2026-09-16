@@ -34,7 +34,8 @@ async def start_services():
 
     # Render Port Listener
     PORT = int(os.environ.get("PORT", 8080))
-    server = web.AppRunner(await web_server())
+    # 🔹 यहाँ app पास किया गया है ताकि server.py से Log Message भेजा जा सके
+    server = web.AppRunner(await web_server(bot_client=app))
     await server.setup()
     site = web.TCPSite(server, "0.0.0.0", PORT)
     await site.start()
