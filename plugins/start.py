@@ -1,6 +1,6 @@
 import asyncio
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from pyrogram.errors import UserNotParticipant
 from config import Config
 from database import db
@@ -56,9 +56,26 @@ async def start_handler(client, message):
         )
         return
 
+    # 3. Deep-Link Handling (ग्रुप के Mini App बटन से रिडायरेक्ट होने पर)
     text = message.text.split()
     if len(text) > 1:
         deep_param = text[1]
+
+        # 🔹 अगर Deep-link parameter "request" है
+        if deep_param == "request":
+            mini_app_url = getattr(Config, "REQUEST_MINI_APP_URL", None)
+            if mini_app_url:
+                btn = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("📝 ᴏᴘᴇɴ ʀᴇǫᴜᴇsᴛ ғᴏʀᴍ", web_app=WebAppInfo(url=mini_app_url))]
+                ])
+                await message.reply_text(
+                    "📝 **sᴛᴏʀʏ ʀᴇǫᴜᴇsᴛ**\n\n"
+                    "Click the button below to open the request form:",
+                    reply_markup=btn
+                )
+                return
+
+        # 🔹 अन्य किसी नॉर्मल Deep-link पैरामीटर के लिए fallback
         await message.reply_text(f"🚀 **Started via Deep-Link:** `{deep_param}`")
         return
 
@@ -112,5 +129,4 @@ async def back_home_callback(client, query):
         ]
     ])
     
-    # Back click par direct message edit hoga (Deep-link issue fixed)
     await query.message.edit_text(welcome_text, reply_markup=buttons)
