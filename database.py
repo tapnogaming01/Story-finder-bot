@@ -8,8 +8,9 @@ class Database:
         self.db = self.client[Config.DATABASE_NAME]
         self.posts = self.db.posts
         self.users = self.db.users
-        self.settings = self.db.settings  # ⚙️ Admin Settings for Text vs Button layout
-        self.requests = self.db.requests  # 📝 Feature 1: Requests tracking collection
+        self.settings = self.db.settings     # ⚙️ Admin Settings for Text vs Button layout
+        self.requests = self.db.requests     # 📝 Feature 1: Requests tracking collection
+        self.subscribers = self.db.subscribers # 🔔 Feature 2: Story Subscriber Tracking Collection
 
     # --- Upgraded Posts Logic (Story | Button Text | Link Support) ---
     async def save_post(self, caption_text):
@@ -148,42 +149,85 @@ class Database:
     async def total_users_count(self):
         return await self.users.count_documents({})
 
-    # --- Feature 1: User Request Tracking Logic ---
+    # --- Feature 1: User Request Tracking Logic (Requests Collection) ---
     async def add_user_request(self, user_id, first_name, story_name, details="N/A"):
-        """Mini App से आने वाली यूज़र की रिक्वेस्ट को 'Pending' स्टेटस के साथ सेव करेगा"""
+        """Mini App या Form से आने वाली यूज़र की रिक्वेस्ट को सेव करेगा"""
+        # 1. Requests Collection में रिकॉर्ड बनाएगा
         req_doc = {
             "user_id": int(user_id),
             "first_name": first_name,
             "story_name": story_name,
             "details": details,
-            "status": "Pending",  # डिफ़ॉल्ट स्टेटस Pending रहेगा
+            "status": "Pending",
             "created_at": datetime.now(timezone.utc)
         }
         await self.requests.insert_one(req_doc)
+
+        # 2. साथ ही user_id को requests कलेक्शन के अलेग ग्रुप में मैप करेगा (ताकि नोटिफिकेशन में आसानी हो)
+        await self.requests.update_one(
+            {"story_name": story_name},
+            {"$addToSet": {"user_ids": int(user_id)}},
+            upsert=True
+        )
         return True
 
     async def get_user_requests(self, user_id):
         """यूज़र की सभी पुरानी स्टोरी रिक्वेस्ट और उनका स्टेटस निकालेगा"""
         cursor = self.requests.find(
             {"user_id": int(user_id)},
-            {"_id": 0}  # JSON serializable बनाने के लिए _id हटा दें
+            {"_id": 0}
         ).sort("created_at", -1)
         
         results = await cursor.to_list(length=50)
-        # Datetime ऑब्जेक्ट्स को String में फॉर्मेट करें
         for req in results:
             if "created_at" in req and isinstance(req["created_at"], datetime):
                 req["created_at"] = req["created_at"].strftime("%Y-%m-%d %H:%M:%S")
         return results
 
 
+    # --- Feature 2: Story Subscription Tracking Logic (Subscribers Collection) ---
+    async def subscribe_user_to_story(self, user_id, story_name):
+        """यूज़र को किसी स्टोरी का नया एपिसोड आने पर अपडेट पाने के लिए सब्सक्राइब करेगा"""
+        await self.subscribers.update_one(
+            {"story_name": story_name},
+            {"$addToSet": {"user_ids": int(user_id)}},
+            upsert=True
+        )
+        return True
 
-# server.py से डायरेक्ट इम्पोर्ट करने के लिए हेल्पर्स:
+    async def unsubscribe_user_from_story(self, user_id, story_name):
+        """यूज़र को स्टोरी के अपडेट्स से अनसब्सक्राइब करेगा"""
+        await self.subscribers.update_one(
+            {"story_name": story_name},
+            {"$pull": {"user_ids": int(user_id)}}
+        )
+        return True
+
+    async def is_user_subscribed(self, user_id, story_name):
+        """जाँच करेगा कि यूज़र उस स्टोरी के लिए सब्सक्राइब है या नहीं"""
+        doc = await self.subscribers.find_one({
+            "story_name": story_name,
+            "user_ids": int(user_id)
+        })
+        return doc is not None
+
+    async def get_subscribed_users(self, story_name):
+        """उस स्टोरी के सभी सब्सक्राइब्ड यूजर IDs की लिस्ट निकालेगा"""
+        doc = await self.subscribers.find_one({"story_name": story_name})
+        if doc and "user_ids" in doc:
+            return doc["user_ids"]
+        return []
+
+
+# Database Object Initialize
+
+# server.py या external imports के लिए direct helpers:
 async def add_user_request(user_id, first_name, story_name, details="N/A"):
     return await db.add_user_request(user_id, first_name, story_name, details)
 
 async def get_user_requests(user_id):
     return await db.get_user_requests(user_id)
+
 
 db = Database()
 
