@@ -8,7 +8,7 @@ class Database:
         self.db = self.client[Config.DATABASE_NAME]
         self.posts = self.db.posts
         self.users = self.db.users
-        self.settings = self.db.settings     # ⚙️ Admin Settings for Text vs Button layout
+        self.settings = self.db.settings     # ⚙️ Admin Settings for Text vs Button & Page Limit
         self.requests = self.db.requests     # 📝 Feature 1: Requests tracking collection
         self.subscribers = self.db.subscribers # 🔔 Feature 2: Story Subscriber Tracking Collection
 
@@ -131,6 +131,27 @@ class Database:
         )
         return True
 
+    # 📌 --- NEW: Page Limit Settings Logic (5 or 10 Results) ---
+    async def get_page_limit(self):
+        """
+        प्रति पेज सर्च रिजल्ट्स की लिमिट (5 या 10) निकालेगा (डिफ़ॉल्ट: 5)
+        """
+        config = await self.settings.find_one({"setting_id": "bot_layout"})
+        if config and "page_limit" in config:
+            return int(config["page_limit"])
+        return 5  # डिफ़ॉल्ट रूप से 5 results/page रहेंगे
+
+    async def set_page_limit(self, limit: int):
+        """
+        ऑनर द्वारा सेट की गई पेज लिमिट (5 या 10) को अपडेट करेगा
+        """
+        await self.settings.update_one(
+            {"setting_id": "bot_layout"},
+            {"$set": {"page_limit": int(limit)}},
+            upsert=True
+        )
+        return True
+
     # --- User Registration Logic ---
     async def add_user(self, user_id, first_name, username=None):
         """अगर यूजर नया है तो रजिस्ट्रेशन करके True देगा, अगर पुराना है तो False देगा"""
@@ -163,7 +184,7 @@ class Database:
         }
         await self.requests.insert_one(req_doc)
 
-        # 2. साथ ही user_id को requests कलेक्शन के अलेग ग्रुप में मैप करेगा (ताकि नोटिफिकेशन में आसानी हो)
+        # 2. साथ ही user_id को requests कलेक्शन के अलग ग्रुप में मैप करेगा (ताकि नोटिफिकेशन में आसानी हो)
         await self.requests.update_one(
             {"story_name": story_name},
             {"$addToSet": {"user_ids": int(user_id)}},
@@ -219,7 +240,7 @@ class Database:
         return []
 
 
-# Database Object Initialize
+
 
 # server.py या external imports के लिए direct helpers:
 async def add_user_request(user_id, first_name, story_name, details="N/A"):
@@ -228,6 +249,5 @@ async def add_user_request(user_id, first_name, story_name, details="N/A"):
 async def get_user_requests(user_id):
     return await db.get_user_requests(user_id)
 
-
+# Database Object Initialize
 db = Database()
-
