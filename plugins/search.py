@@ -3,7 +3,7 @@ import json
 import asyncio
 from urllib.parse import quote_plus
 from pyrogram import Client, filters
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, LinkPreviewOptions
 from pyrogram.errors import FloodWait
 from database import db
 from rapidfuzz import process, fuzz
@@ -223,7 +223,7 @@ async def search_handler(client, message):
     # --- Direct Button / Exact Match ---
     if result_type in ["direct_button", "story_all"] and results:
         bot_style = await db.get_bot_style()
-        page_size = await db.get_page_limit() # Fetch Page Limit (5 or 10)
+        page_size = await db.get_page_limit()
 
         if bot_style == "text":
             res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type, page_size=page_size)
@@ -237,7 +237,7 @@ async def search_handler(client, message):
                 chat_id=message.chat.id,
                 text=res_text,
                 reply_markup=markup,
-                disable_web_page_preview=True
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
             asyncio.create_task(auto_delete_message(sent_msg, 300))
             return
@@ -310,7 +310,7 @@ async def search_handler(client, message):
                 f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
             ),
             reply_markup=InlineKeyboardMarkup(buttons),
-            disable_web_page_preview=True
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
         )
         asyncio.create_task(auto_delete_message(sent_msg, 60))
         return
@@ -399,7 +399,7 @@ async def dym_story_callback(client, query):
                 chat_id=query.message.chat.id,
                 text=res_text,
                 reply_markup=markup,
-                disable_web_page_preview=True
+                link_preview_options=LinkPreviewOptions(is_disabled=True)
             )
         else:
             markup = build_story_buttons_markup(
@@ -453,7 +453,11 @@ async def story_pagination_callback(client, query):
             mode="text", chat_type=chat_type, bot_username=client.me.username,
             user_name=first_name, user_id=user_id, page_size=page_size
         )
-        await query.message.edit_text(res_text, reply_markup=markup, disable_web_page_preview=True)
+        await query.message.edit_text(
+            res_text, 
+            reply_markup=markup, 
+            link_preview_options=LinkPreviewOptions(is_disabled=True)
+        )
     else:
         markup = build_story_buttons_markup(
             buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
