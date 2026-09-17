@@ -60,9 +60,8 @@ def get_request_button(chat_type="private", bot_username=""):
         pm_link = f"https://t.me/{bot_username}?start=request"
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", url=pm_link)]
 
-# 1. Markup Builder (Subscribe Button के साथ)
-def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username="", user_name="", user_id=None):
-    page_size = 10
+# 1. Markup Builder (Subscribe Button और Dynamic Page Limit के साथ)
+def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username="", user_name="", user_id=None, page_size=5):
     start = page * page_size
     end = start + page_size
     current_page_items = buttons_list[start:end]
@@ -108,9 +107,8 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
 
     return InlineKeyboardMarkup(keyboard)
 
-# 2. Text Format Response Generator
-def generate_text_response(story_name, buttons_list, page=0, user_query="", result_type="story_all"):
-    page_size = 10
+# 2. Text Format Response Generator (Dynamic Page Limit के साथ)
+def generate_text_response(story_name, buttons_list, page=0, user_query="", result_type="story_all", page_size=5):
     start = page * page_size
     end = start + page_size
     current_items = buttons_list[start:end]
@@ -225,13 +223,14 @@ async def search_handler(client, message):
     # --- Direct Button / Exact Match ---
     if result_type in ["direct_button", "story_all"] and results:
         bot_style = await db.get_bot_style()
+        page_size = await db.get_page_limit() # Fetch Page Limit (5 or 10)
 
         if bot_style == "text":
-            res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type)
+            res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type, page_size=page_size)
             markup = build_story_buttons_markup(
                 buttons_list=results, page=0, story_id=story_doc["story_name"], 
                 mode="text", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id
+                user_name=first_name, user_id=user_id, page_size=page_size
             )
             
             sent_msg = await client.send_message(
@@ -247,7 +246,7 @@ async def search_handler(client, message):
             markup = build_story_buttons_markup(
                 buttons_list=results, page=0, story_id=story_doc["story_name"], 
                 mode="button", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id
+                user_name=first_name, user_id=user_id, page_size=page_size
             )
             title_header = f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`"
             if result_type == "direct_button":
@@ -358,7 +357,7 @@ async def subscribe_story_callback(client, query):
     story_name = query.data.split("#")[1]
 
     # Database में यूज़र को इस स्टोरी के लिए सब्सक्राइब करें
-    await db.db.subscribers.update_one(
+    await db.subscribers.update_one(
         {"story_name": story_name},
         {"$addToSet": {"user_ids": user_id}},
         upsert=True
@@ -387,13 +386,14 @@ async def dym_story_callback(client, query):
             pass
 
         bot_style = await db.get_bot_style()
+        page_size = await db.get_page_limit()
 
         if bot_style == "text":
-            res_text = generate_text_response(story_name, story_doc["buttons"], page=0)
+            res_text = generate_text_response(story_name, story_doc["buttons"], page=0, page_size=page_size)
             markup = build_story_buttons_markup(
                 buttons_list=story_doc["buttons"], page=0, story_id=story_name, 
                 mode="text", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id
+                user_name=first_name, user_id=user_id, page_size=page_size
             )
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
@@ -405,7 +405,7 @@ async def dym_story_callback(client, query):
             markup = build_story_buttons_markup(
                 buttons_list=story_doc["buttons"], page=0, story_id=story_name, 
                 mode="button", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id
+                user_name=first_name, user_id=user_id, page_size=page_size
             )
             total_btns = len(story_doc["buttons"])
             sent_msg = await client.send_message(
@@ -444,20 +444,21 @@ async def story_pagination_callback(client, query):
         return
 
     bot_style = await db.get_bot_style()
+    page_size = await db.get_page_limit()
 
     if bot_style == "text":
-        res_text = generate_text_response(story_name, story_doc["buttons"], page=page)
+        res_text = generate_text_response(story_name, story_doc["buttons"], page=page, page_size=page_size)
         markup = build_story_buttons_markup(
             buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
             mode="text", chat_type=chat_type, bot_username=client.me.username,
-            user_name=first_name, user_id=user_id
+            user_name=first_name, user_id=user_id, page_size=page_size
         )
         await query.message.edit_text(res_text, reply_markup=markup, disable_web_page_preview=True)
     else:
         markup = build_story_buttons_markup(
             buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
             mode="button", chat_type=chat_type, bot_username=client.me.username,
-            user_name=first_name, user_id=user_id
+            user_name=first_name, user_id=user_id, page_size=page_size
         )
         total_btns = len(story_doc["buttons"])
         await query.message.edit_text(
