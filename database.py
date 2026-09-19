@@ -242,6 +242,16 @@ class Database:
 
 
 
+# --- Existing Story Check Function (For server.py / Mini App) ---
+async def is_story_exists(story_name):
+    """
+    जाँच करता है कि क्या यह स्टोरी पहले से डेटाबेस में मौजूद है।
+    अगर मौजूद है, तो उसकी जानकारी और कुल एपिसोड रिटर्न करेगा, वरना None।
+    """
+    story_lower = story_name.strip().lower()
+    return await db.posts.find_one({"story_lower": story_lower})
+
+
 # server.py या external imports के लिए direct helpers:
 async def add_user_request(user_id, first_name, story_name, details="N/A"):
     return await db.add_user_request(user_id, first_name, story_name, details)
