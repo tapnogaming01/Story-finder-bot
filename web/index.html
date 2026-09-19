@@ -155,7 +155,6 @@
             box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
         }
 
-        /* साफ़ और स्पष्ट प्लेसहोल्डर */
         input::placeholder, textarea::placeholder {
             color: rgba(255, 255, 255, 0.5);
             font-weight: 400;
@@ -319,7 +318,22 @@
             </p>
         </div>
 
-        <button type="button" id="closeBtn" class="close-btn">
+        <button type="button" class="closeBtn close-btn">
+            ✖️ Close Window
+        </button>
+    </div>
+
+    <!-- 4. Already Exists Screen (New Screen) -->
+    <div class="card hidden" id="alreadyExistsCard">
+        <div class="header" style="text-align: center;">
+            <span style="font-size: 50px; display: inline-block; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.3));">💡</span>
+            <h2 style="margin-top: 10px; color: #f59e0b;">Already Uploaded!</h2>
+            <p id="alreadyExistsMsg" style="margin-top: 8px; font-size: 13.5px; color: rgba(255,255,255,0.85); line-height: 1.5;">
+                यह स्टोरी हमारे पास पहले से उपलब्ध है! आप बॉट के इनबॉक्स (PM) में जाकर इसका नाम टाइप करके सीधे सर्च कर सकते हैं।
+            </p>
+        </div>
+
+        <button type="button" class="closeBtn close-btn">
             ✖️ Close Window
         </button>
     </div>
@@ -338,6 +352,7 @@
         const requestForm = document.getElementById('requestForm');
         const mainCard = document.getElementById('mainCard');
         const successCard = document.getElementById('successCard');
+        const alreadyExistsCard = document.getElementById('alreadyExistsCard');
 
         // Tab Switching Logic
         newReqTab.addEventListener('click', () => {
@@ -363,7 +378,7 @@
             const btnText = document.getElementById('btnText');
             
             submitBtn.disabled = true;
-            btnText.innerHTML = `<span class="spinner"></span> Submitting...`;
+            btnText.innerHTML = `<span class="spinner"></span> Checking...`;
 
             const payload = {
                 story_name: document.getElementById('storyName').value.trim(),
@@ -380,12 +395,26 @@
                     body: JSON.stringify(payload)
                 });
 
-                if (response.ok) {
+                const data = await response.json();
+
+                // 1. स्टोरी पहले से अपलोडेड है
+                if (data.status === "already_exists") {
+                    mainCard.classList.add('hidden');
+                    alreadyExistsCard.classList.remove('hidden');
+                    if (data.message) {
+                        document.getElementById('alreadyExistsMsg').innerText = data.message;
+                    }
+                    if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('warning');
+                } 
+                // 2. स्टोरी सफलता से रिक्वेस्ट हो गई
+                else if (data.status === "success" || response.ok) {
                     mainCard.classList.add('hidden');
                     successCard.classList.remove('hidden');
                     if (tg.HapticFeedback) tg.HapticFeedback.notificationOccurred('success');
-                } else {
-                    tg.showAlert("❌ Server error! Please try again.");
+                } 
+                // 3. कोई अन्य एरर आने पर
+                else {
+                    tg.showAlert("❌ " + (data.message || "Server error! Please try again."));
                     resetBtn();
                 }
             } catch (err) {
@@ -421,7 +450,10 @@
             }
         }
 
-        document.getElementById('closeBtn').addEventListener('click', () => tg.close());
+        // Close Buttons Listener
+        document.querySelectorAll('.closeBtn').forEach(btn => {
+            btn.addEventListener('click', () => tg.close());
+        });
 
         function resetBtn() {
             const submitBtn = document.getElementById('submitBtn');
