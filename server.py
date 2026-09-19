@@ -1,8 +1,9 @@
 import os
 import json
+import re
 from aiohttp import web
 from config import Config
-from database import add_user_request, get_user_requests
+from database import db, add_user_request, get_user_requests
 
 routes = web.RouteTableDef()
 
@@ -18,18 +19,37 @@ async def mini_app_route_handler(request):
         return web.FileResponse("./web/index.html")
     return web.Response(text="index.html file not found in /web directory!", status=444)
 
-# 3. API Route: नई स्टोरी रिक्वेस्ट सेव करने और Log Channel में भेजने के लिए
+# 3. API Route: नई स्टोरी रिक्वेस्ट सेव करने और Log Channel में भेजने के लिए (Already Uploaded Check के साथ)
 @routes.post("/api/request_story")
 async def request_story_handler(request):
     try:
         data = await request.json()
-        story_name = data.get("story_name", "N/A")
+        story_name = data.get("story_name", "").strip()
         details = data.get("details", "N/A")
         user_id = data.get("user_id", "Unknown")
         first_name = data.get("first_name", "User")
         username = data.get("username", "None")
 
-        # 🔹 Feature 1: डेटाबेस में यूज़र की रिक्वेस्ट सेव करें
+        if not story_name:
+            return web.json_response({
+                "status": "error",
+                "message": "Story name is required!"
+            }, status=400)
+
+        # 🔍 Step 1: डेटाबेस में चेक करें कि क्या यह स्टोरी पहले से मौजूद है
+        existing_story = await db.posts.find_one({
+            "story_name": {"$regex": f"^{re.escape(story_name)}$", "$options": "i"}
+        })
+
+        # 🚫 अगर स्टोरी पहले से डेटाबेस में मौजूद है
+        if existing_story:
+            total_episodes = len(existing_story.get("buttons", []))
+            return web.json_response({
+                "status": "already_exists",
+                "message": f"This story ('{existing_story.get('story_name')}') is already uploaded in our database with {total_episodes} episode(s)! You can search for it directly in the chat."
+            }, status=200)
+
+        # 🔹 Step 2: अगर स्टोरी नहीं है, तो डेटाबेस में यूज़र की रिक्वेस्ट सेव करें
         if user_id != "Unknown" and str(user_id).isdigit():
             await add_user_request(
                 user_id=int(user_id),
@@ -68,7 +88,7 @@ async def request_story_handler(request):
             "message": "Internal Server Error"
         }, status=500)
 
-# 4. API Route: यूज़र की Requests की लिस्ट Mini App को भेजने के लिए (Feature 1)
+# 4. API Route: यूज़र की Requests की लिस्ट Mini App को भेजने के लिए
 @routes.get("/api/my_requests")
 async def my_requests_handler(request):
     try:
