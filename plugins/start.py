@@ -1,4 +1,5 @@
 import asyncio
+import random
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from pyrogram.errors import UserNotParticipant
@@ -20,6 +21,12 @@ async def check_verification(client, user_id):
 
 @Client.on_message(filters.command("start") & filters.private)
 async def start_handler(client, message):
+    # 🎭 यूज़र के मैसेज पर Config से रैंडम इमोजी रिएक्ट करें
+    try:
+        await message.react(emoji=random.choice(Config.REACTIONS), big=True)
+    except Exception:
+        pass
+
     user_id = message.from_user.id
     first_name = message.from_user.first_name
     username = message.from_user.username
@@ -112,7 +119,7 @@ async def about_callback(client, query):
         "▸ **ғᴜɴᴄᴛɪᴏɴ:** ᴀᴜᴛᴏ-ɪɴᴅᴇx & ғᴜᴢᴢʏ sᴇᴀʀᴄʜ ᴇɴɢɪɴᴇ\n"
         "▸ **ᴅᴇᴠᴇʟᴏᴘᴇʀ:** [Kaluu](tg://user?id=" + str(Config.OWNER_ID) + ")\n"
         "▸ **ʟᴀɴɢᴜᴀɢᴇ:** Python 3\n"
-        "▸ **ғʀᴀᴍᴇᴡᴏʀᴋ:** kurigram v2.2.25"
+        "▸ **ғʀᴀᴍᴇᴡᴏʀᴋ:** kurigram v2.2.26"
     )
     await query.message.edit_text(
         about_text,
