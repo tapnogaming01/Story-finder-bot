@@ -1,6 +1,7 @@
 import re
 import json
 import asyncio
+import random
 from urllib.parse import quote_plus
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo, LinkPreviewOptions
@@ -67,10 +68,6 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
     current_page_items = buttons_list[start:end]
 
     keyboard = []
-
-    # 1. Requested By Header (अगर उपलब्ध हो)
-    if user_name and user_id:
-        keyboard.append([InlineKeyboardButton(f"👤 Requested By: {user_name}", url=f"tg://user?id={user_id}")])
 
     # 2. 🔘 BUTTON MODE
     if mode == "button":
@@ -175,6 +172,12 @@ async def smart_search_handler(user_query):
 
 @Client.on_message(filters.text & (filters.private | filters.group) & ~filters.command(["start", "help", "about", "index", "index_last", "settings", "mode"]))
 async def search_handler(client, message):
+    # 🎭 यूज़र के सर्च मैसेज पर Config से रैंडम इमोजी रिएक्ट करें
+    try:
+        await message.react(emoji=random.choice(Config.REACTIONS), big=True)
+    except Exception:
+        pass
+
     user = message.from_user
     user_id = user.id if user else None
     if not user_id:
@@ -266,9 +269,6 @@ async def search_handler(client, message):
 
     # --- Did You Mean Suggestions ---
     if result_type == "suggestion" and results:
-        sug_buttons = [
-            [InlineKeyboardButton(f"👤 Requested By: {first_name}", url=f"tg://user?id={user_id}")]
-        ]
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
@@ -294,7 +294,6 @@ async def search_handler(client, message):
         google_search_url = f"https://www.google.com/search?q={encoded_query}"
         
         buttons = [
-            [InlineKeyboardButton(f"👤 Requested By: {first_name}", url=f"tg://user?id={user_id}")],
             [InlineKeyboardButton("🔍 sᴇᴀʀᴄʜ ᴏɴ ɢᴏᴏɢʟᴇ", url=google_search_url)]
         ]
 
