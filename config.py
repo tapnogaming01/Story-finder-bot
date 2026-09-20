@@ -18,5 +18,9 @@ class Config:
     # config.py फ़ाइल में अपनी Sticker File ID डालें
     SEARCH_STICKER_ID = "CAACAgUAAxkBAAEH3yZqrtDE3N7N1Kt9x0mSgx3xGJH35gACrhcAAlCkcVdDlEUKsV-u9R4E" 
     
-    
+    REACTIONS = [
+        "❤️", "🥪", "🔥", "💖", "🍔", 
+        "🍕", "🥳", "👍", "🎉", "😍", 
+        "🤩", "✨", "💯", "🚀", "🍿"
+    ]
     REQUEST_MINI_APP_URL = "https://story-finder-bot-fjm9.onrender.com/request"
