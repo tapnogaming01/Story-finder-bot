@@ -62,21 +62,21 @@ def get_request_button(chat_type="private", bot_username=""):
         return [InlineKeyboardButton("📝 ʀᴇǫᴜᴇsᴛ sᴛᴏʀʏ", url=pm_link)]
 
 # 1. Markup Builder (Subscribe Button और Dynamic Page Limit के साथ)
-def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username="", user_name="", user_id=None, page_size=5):
+def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button", chat_type="private", bot_username="", page_size=5):
     start = page * page_size
     end = start + page_size
     current_page_items = buttons_list[start:end]
 
     keyboard = []
 
-    # 2. 🔘 BUTTON MODE
+    # 1. 🔘 BUTTON MODE
     if mode == "button":
         for item in current_page_items:
             btn_text = item.get("button_text", "Open Link")
             btn_url = item.get("link", "")
             keyboard.append([InlineKeyboardButton(text=btn_text, url=btn_url)])
 
-    # 3. Pagination Nav
+    # 2. Pagination Nav
     total_pages = (len(buttons_list) + page_size - 1) // page_size
     nav_buttons = []
 
@@ -93,11 +93,11 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
     if total_pages > 1 or mode == "text":
         keyboard.append(nav_buttons)
 
-    # 4. 🔔 Subscribe Updates Button
+    # 3. 🔔 Subscribe Updates Button
     if story_id:
         keyboard.append([InlineKeyboardButton("🔔 sᴜʙsᴄʀɪʙᴇ ᴜᴘᴅᴀᴛᴇs", callback_data=f"sub_story#{story_id}")])
 
-    # 5. 📌 Request Story बटन जोड़ें
+    # 4. 📌 Request Story बटन जोड़ें
     req_btn = get_request_button(chat_type=chat_type, bot_username=bot_username)
     if req_btn:
         keyboard.append(req_btn)
@@ -105,7 +105,7 @@ def build_story_buttons_markup(buttons_list, page=0, story_id="", mode="button",
     return InlineKeyboardMarkup(keyboard)
 
 # 2. Text Format Response Generator (Dynamic Page Limit के साथ)
-def generate_text_response(story_name, buttons_list, page=0, user_query="", result_type="story_all", page_size=5):
+def generate_text_response(story_name, buttons_list, page=0, user_query="", result_type="story_all", page_size=5, user_name=""):
     start = page * page_size
     end = start + page_size
     current_items = buttons_list[start:end]
@@ -114,7 +114,8 @@ def generate_text_response(story_name, buttons_list, page=0, user_query="", resu
     if result_type == "direct_button":
         res_text += f"🎯 **ᴍᴀᴛᴄʜᴇᴅ ᴇᴘɪsᴏᴅᴇ ʀᴇsᴜʟᴛ ғᴏʀ:** `{user_query}`\n"
     
-    res_text += f"🔗 **ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ:** `{len(buttons_list)}`\n\n"
+    req_by_str = f" | 👤 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ:** {user_name}" if user_name else ""
+    res_text += f"🔗 **ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ:** `{len(buttons_list)}`{req_by_str}\n\n"
 
     for idx, item in enumerate(current_items, start=start + 1):
         btn_label = item.get("button_text", "Open Link")
@@ -229,11 +230,14 @@ async def search_handler(client, message):
         page_size = await db.get_page_limit()
 
         if bot_style == "text":
-            res_text = generate_text_response(story_doc['story_name'], results, page=0, user_query=user_query, result_type=result_type, page_size=page_size)
+            res_text = generate_text_response(
+                story_doc['story_name'], results, page=0, user_query=user_query, 
+                result_type=result_type, page_size=page_size, user_name=first_name
+            )
             markup = build_story_buttons_markup(
                 buttons_list=results, page=0, story_id=story_doc["story_name"], 
                 mode="text", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id, page_size=page_size
+                page_size=page_size
             )
             
             sent_msg = await client.send_message(
@@ -249,7 +253,7 @@ async def search_handler(client, message):
             markup = build_story_buttons_markup(
                 buttons_list=results, page=0, story_id=story_doc["story_name"], 
                 mode="button", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id, page_size=page_size
+                page_size=page_size
             )
             title_header = f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`"
             if result_type == "direct_button":
@@ -259,7 +263,7 @@ async def search_handler(client, message):
                 chat_id=message.chat.id,
                 text=(
                     f"{title_header}\n"
-                    f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}`\n\n"
+                    f"🔗 **ʙᴜᴛᴛᴏɴs ғᴏᴜɴᴅ:** `{len(results)}` | 👤 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ:** {first_name}\n\n"
                     f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
                 ),
                 reply_markup=markup
@@ -269,6 +273,7 @@ async def search_handler(client, message):
 
     # --- Did You Mean Suggestions ---
     if result_type == "suggestion" and results:
+        sug_buttons = []
         for sug in results:
             sug_buttons.append([InlineKeyboardButton(f"📖 {sug}", callback_data=f"dym_story#{sug}")])
 
@@ -279,7 +284,8 @@ async def search_handler(client, message):
         sent_msg = await client.send_message(
             chat_id=message.chat.id,
             text=(
-                f"❌ **ɴᴏ ᴅɪʀᴇᴄᴛ ᴍᴀᴛᴄʜ ғᴏᴜɴᴅ ғᴏʀ `{user_query}`.**\n\n"
+                f"❌ **ɴᴏ ᴅɪʀᴇᴄᴛ ᴍᴀᴛᴄʜ ғᴏᴜɴᴅ ғᴏʀ `{user_query}`.**\n"
+                f"👤 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ:** {first_name}\n\n"
                 f"**🤖 ᴅɪᴅ ʏᴏᴜ ᴍᴇᴀɴ?**\n\n"
                 f"⏱️ _ᴛʜɪs sᴜɢɢᴇsᴛɪᴏɴ ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
             ),
@@ -304,7 +310,8 @@ async def search_handler(client, message):
         sent_msg = await client.send_message(
             chat_id=message.chat.id,
             text=(
-                f"❌ **ɴᴏ ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ ғᴏʀ:** `{user_query}`\n\n"
+                f"❌ **ɴᴏ ʀᴇsᴜʟᴛs ғᴏᴜɴᴅ ғᴏʀ:** `{user_query}`\n"
+                f"👤 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ:** {first_name}\n\n"
                 f"Please check your spelling or click below to request standard upload.\n\n"
                 f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 1 ᴍɪɴᴜᴛᴇ._"
             ),
@@ -388,11 +395,11 @@ async def dym_story_callback(client, query):
         page_size = await db.get_page_limit()
 
         if bot_style == "text":
-            res_text = generate_text_response(story_name, story_doc["buttons"], page=0, page_size=page_size)
+            res_text = generate_text_response(story_name, story_doc["buttons"], page=0, page_size=page_size, user_name=first_name)
             markup = build_story_buttons_markup(
                 buttons_list=story_doc["buttons"], page=0, story_id=story_name, 
                 mode="text", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id, page_size=page_size
+                page_size=page_size
             )
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
@@ -404,14 +411,14 @@ async def dym_story_callback(client, query):
             markup = build_story_buttons_markup(
                 buttons_list=story_doc["buttons"], page=0, story_id=story_name, 
                 mode="button", chat_type=chat_type, bot_username=client.me.username,
-                user_name=first_name, user_id=user_id, page_size=page_size
+                page_size=page_size
             )
             total_btns = len(story_doc["buttons"])
             sent_msg = await client.send_message(
                 chat_id=query.message.chat.id,
                 text=(
                     f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`\n"
-                    f"🔗 **ᴀᴠᴀɪʟᴀʙʟᴇ ʟɪɴᴋs/ᴇᴘɪsᴏᴅᴇs:** `{total_btns}`\n\n"
+                    f"🔗 **ᴀᴠᴀɪʟᴀʙʟᴇ ʟɪɴᴋs/ᴇᴘɪsᴏᴅᴇs:** `{total_btns}` | 👤 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ:** {first_name}\n\n"
                     f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._"
                 ),
                 reply_markup=markup
@@ -446,11 +453,11 @@ async def story_pagination_callback(client, query):
     page_size = await db.get_page_limit()
 
     if bot_style == "text":
-        res_text = generate_text_response(story_name, story_doc["buttons"], page=page, page_size=page_size)
+        res_text = generate_text_response(story_name, story_doc["buttons"], page=page, page_size=page_size, user_name=first_name)
         markup = build_story_buttons_markup(
             buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
             mode="text", chat_type=chat_type, bot_username=client.me.username,
-            user_name=first_name, user_id=user_id, page_size=page_size
+            page_size=page_size
         )
         await query.message.edit_text(
             res_text, 
@@ -461,12 +468,12 @@ async def story_pagination_callback(client, query):
         markup = build_story_buttons_markup(
             buttons_list=story_doc["buttons"], page=page, story_id=story_name, 
             mode="button", chat_type=chat_type, bot_username=client.me.username,
-            user_name=first_name, user_id=user_id, page_size=page_size
+            page_size=page_size
         )
         total_btns = len(story_doc["buttons"])
         await query.message.edit_text(
             f"📖 **sᴛᴏʀʏ:** `{story_doc['story_name']}`\n"
-            f"🔗 **ᴀᴠᴀɪʟᴀʙʟᴇ ʟɪɴᴋs/ᴇᴘɪsᴏᴅᴇs:** `{total_btns}`\n\n"
+            f"🔗 **ᴀᴠᴀɪʟᴀʙʟᴇ ʟɪɴᴋs/ᴇᴘɪsᴏᴅᴇs:** `{total_btns}` | 👤 **ʀᴇǫᴜᴇsᴛᴇᴅ ʙʏ:** {first_name}\n\n"
             f"⏱️ _ᴛʜɪs ᴍᴇssᴀɢᴇ ᴡɪʟʟ ʙᴇ ᴅᴇʟᴇᴛᴇᴅ ɪɴ 5 ᴍɪɴᴜᴛᴇs._",
             reply_markup=markup
         )
